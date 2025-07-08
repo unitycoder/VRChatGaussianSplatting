@@ -121,20 +121,25 @@ struct appdata
 struct v2g
 {
     float4 vertex : SV_POSITION;
-    float4 objCameraPos : TEXCOORD0;
     UNITY_VERTEX_INPUT_INSTANCE_ID
     UNITY_VERTEX_OUTPUT_STEREO
 };
 
 struct g2f
 {
-    float4 vertex : SV_POSITION;
-    float4 planeX : TEXCOORD0;
-    float4 planeY : TEXCOORD1;
+    float4 position : SV_POSITION;
+    // float4 planeX : TEXCOORD0;
+    // float4 planeY : TEXCOORD1;
+
+    float3 world_pos : TEXCOORD0;
+    nointerpolation float4 color  : TEXCOORD1;
+    nointerpolation float4 rotation : TEXCOORD2;
+    nointerpolation float3 pos : TEXCOORD3;
+    nointerpolation float3 scale : TEXCOORD4;
+
     #ifdef _WRITE_DEPTH_ON
-    float4 MT3 : TEXCOORD2;
+    float4 MT3 : TEXCOORD5;
     #endif
-    float4 color : COLOR0;
     UNITY_VERTEX_OUTPUT_STEREO
 };
 
@@ -145,12 +150,40 @@ v2g vert(appdata v)
     UNITY_INITIALIZE_OUTPUT(v2g, o);
     UNITY_TRANSFER_INSTANCE_ID(v, o);
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
-
-    o.objCameraPos = mul(unity_WorldToObject, float4(_WorldSpaceCameraPos, 1));
     return o;
 }
 
-[maxvertexcount(4)]
+// rotate vector v by quaternion q
+float3 q_rotate(float3 v, float4 q) {
+    float3 t  = 2.0f * cross(q.xyz, v);
+    return v + q.w * t + cross(q.xyz, t);
+}
+
+float4 conj_q(float4 q) {
+    return float4(-q.xyz, q.w);  // conjugate of quaternion
+}
+
+float compute_splat_rho(float3 ro, float3 rd, float3 pos, float4 rot, float3 rad) {
+    ro = q_rotate(ro - pos, conj_q(rot)) * rad;  // rotate and scale position
+    rd = q_rotate(rd, conj_q(rot)) * rad;  // rotate and scale direction
+    float dt = dot(rd, -ro) / dot(rd, rd);  // time to intersection
+    return length(ro + rd * dt); 
+}
+
+float3 unit_space_to_model(float3 p, float3 pos, float4 rot, float3 rad) {
+    return q_rotate(p * rad, rot) + pos;  // rotate and scale position
+}
+
+#define BOX_SCALE 1.5
+
+float3 GetAxis(int i) {
+     return (i == 0) ? float3(BOX_SCALE,0,0) : (i == 1) ? float3(0,BOX_SCALE,0) : float3(0,0,BOX_SCALE); 
+}
+float2 GetUV(int i) { 
+    return float2((i & 1), (i >> 1)); 
+} 
+
+[maxvertexcount(24)]
 [instance(32)]
 void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceID : SV_GSInstanceID, uint geoPrimID : SV_PrimitiveID)
 {
@@ -175,81 +208,120 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
     float4 splatClipPos = mul(UNITY_MATRIX_MVP, float4(splat.mean, 1));
     if (splatClipPos.w <= 0) return;
 
-    float3 objViewDir = normalize(input[0].objCameraPos.xyz - splat.mean);
-    #if _SH_ORDER > 0
-    splat.color.rgb = ShadeSH(splat.color, objViewDir, splat.shN);
-    #endif
+
+    float3 objCameraPos = mul(unity_WorldToObject, float4(_WorldSpaceCameraPos, 1)).xyz;
     o.color = float4(GammaToLinearSpace(splat.color), splat.color.a);
+    o.rotation = splat.quat;
+    o.pos = splat.mean - objCameraPos;
+    o.scale = 1.0 / max(1e-6,splat.scale);
 
-    float3x3 rot = RotationMatrixFromQuaternion(splat.quat);
-    float3x3 rotScale = float3x3(
-        rot[0] * splat.scale,
-        rot[1] * splat.scale,
-        rot[2] * splat.scale
-    );
+    // 3 orthogonal axes in unit-box space
+    [unroll]
+    for (int k = 0; k < 3; k++) {
+        float3 axU =  GetAxis(k);
+        float3 axV =  GetAxis((k + 1) % 3);    // next axis
+        float3 axW =  GetAxis((k + 2) % 3);    // normal of the face pair
 
-    // Perspective-correct splatting from https://github.com/fhahlbohm/depthtested-gaussian-raytracing-webgl
-    // MIT License, Copyright (c) 2025 Florian Hahlbohm
-    float4x4 T = float4x4(
-        rotScale[0], splat.mean.x,
-        rotScale[1], splat.mean.y,
-        rotScale[2], splat.mean.z,
-        0,0,0,1
-    );
-    float4x4 PMT = mul(UNITY_MATRIX_MVP, T);
-
-    float rho_cutoff = 2 * log(splat.color.a * MIN_ALPHA_THRESHOLD_RCP);
-    float4 t = float4(rho_cutoff, rho_cutoff, rho_cutoff, -1);
-    float4 center = mul(PMT, PMT[3] * t);
-    float d = center.w;
-    if (d == 0) return;
-    center /= d;
-    float4 extent = sqrt(max(center * center - mul(PMT * PMT, t / d), 0));
-    if (center.z - extent.z <= MIN_CLIP_Z_VALUE || center.z + extent.z >= 1) return;
-    #ifdef _WRITE_DEPTH_ON
-    o.MT3 = mul(UNITY_MATRIX_MV[2], T);
-    #endif
-
-    [unroll] for (uint vtxID = 0; vtxID < 4; vtxID ++)
-    {
-        float2 quadPos = float2(vtxID & 1, (vtxID >> 1) & 1) * 2.0 - 1.0;
-        o.vertex = center + extent * float4(quadPos, QUADPOS_Z, 0);
-        o.planeX = PMT[0] - PMT[3] * o.vertex.x;
-        o.planeY = PMT[1] - PMT[3] * o.vertex.y;
-        triStream.Append(o);
+        [unroll]
+        for (int i = 0; i < 4; i++) {
+            float2 coord  = GetUV(i) * 2.0 - 1.0;          // map (0,1) → (-1,1)
+            float3 local  = coord.x * axU + coord.y * axV + axW;
+            float3 model  = unit_space_to_model(local, splat.mean, splat.quat, splat.scale);
+            o.position   = UnityObjectToClipPos(float4(model,1));
+            o.world_pos  = model - objCameraPos;                          // if you need it later
+            triStream.Append(o);
+        }
+        triStream.RestartStrip();
     }
+
+    // float3 objViewDir = normalize(input[0].objCameraPos.xyz - splat.mean);
+    // #if _SH_ORDER > 0
+    // splat.color.rgb = ShadeSH(splat.color, objViewDir, splat.shN);
+    // #endif
+    // o.color = float4(GammaToLinearSpace(splat.color), splat.color.a);
+
+    // float3x3 rot = RotationMatrixFromQuaternion(splat.quat);
+    // float3x3 rotScale = float3x3(
+    //     rot[0] * splat.scale,
+    //     rot[1] * splat.scale,
+    //     rot[2] * splat.scale
+    // );
+
+    // // Perspective-correct splatting from https://github.com/fhahlbohm/depthtested-gaussian-raytracing-webgl
+    // // MIT License, Copyright (c) 2025 Florian Hahlbohm
+    // float4x4 T = float4x4(
+    //     rotScale[0], splat.mean.x,
+    //     rotScale[1], splat.mean.y,
+    //     rotScale[2], splat.mean.z,
+    //     0,0,0,1
+    // );
+    // float4x4 PMT = mul(UNITY_MATRIX_MVP, T);
+
+    // float rho_cutoff = 2 * log(splat.color.a * MIN_ALPHA_THRESHOLD_RCP);
+    // float4 t = float4(rho_cutoff, rho_cutoff, rho_cutoff, -1);
+    // float4 center = mul(PMT, PMT[3] * t);
+    // float d = center.w;
+    // if (d == 0) return;
+    // center /= d;
+    // float4 extent = sqrt(max(center * center - mul(PMT * PMT, t / d), 0));
+    // if (center.z - extent.z <= MIN_CLIP_Z_VALUE || center.z + extent.z >= 1) return;
+    // #ifdef _WRITE_DEPTH_ON
+    // o.MT3 = mul(UNITY_MATRIX_MV[2], T);
+    // #endif
+
+    // [unroll] for (uint vtxID = 0; vtxID < 4; vtxID ++)
+    // {
+    //     float2 quadPos = float2(vtxID & 1, (vtxID >> 1) & 1) * 2.0 - 1.0;
+    //     o.vertex = center + extent * float4(quadPos, QUADPOS_Z, 0);
+    //     o.planeX = PMT[0] - PMT[3] * o.vertex.x;
+    //     o.planeY = PMT[1] - PMT[3] * o.vertex.y;
+    //     triStream.Append(o);
+    // }
 }
 
 
-// inverse of LinearEyeDepth
-float EyeDepthToZBufferDepth(float z){
-    return (1. - z * _ZBufferParams.w) / (z * _ZBufferParams.z);
-}
+// // inverse of LinearEyeDepth
+// float EyeDepthToZBufferDepth(float z){
+//     return (1. - z * _ZBufferParams.w) / (z * _ZBufferParams.z);
+// }
 
-float4 frag(g2f i
-#ifdef _WRITE_DEPTH_ON
-, out float outDepth : DEPTH_SEMANTICS
-#endif
-) : SV_Target
+// float4 frag(g2f i
+// #ifdef _WRITE_DEPTH_ON
+// , out float outDepth : DEPTH_SEMANTICS
+// #endif
+// ) : SV_Target
+// {
+//     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
+
+//     float3 m = i.planeX.w * i.planeY.xyz - i.planeX.xyz * i.planeY.w;
+//     float3 d = cross(i.planeX.xyz, i.planeY.xyz);
+//     float numerator = dot(m, m);
+//     float denominator = dot(d, d);
+//     if (numerator > MAX_CUTOFF2 * denominator) discard;
+//     float alpha = exp(-0.5 * numerator / denominator) * abs(i.color.a);
+
+//     #ifdef _WRITE_DEPTH_ON
+//     float4 eval_point_diag = float4(cross(d, m) / denominator, 1);
+//     float z = dot(i.MT3, eval_point_diag);
+//     outDepth = EyeDepthToZBufferDepth(-z); // -Z forward viewspace
+//     #endif
+
+//     float4 color = float4(i.color.rgb, 1);
+//     #ifdef _ALPHA_BLENDING_ON
+//     color.a = alpha;
+//     #endif
+//     return color;
+// }
+
+float4 frag(g2f input) : SV_Target
 {
-    UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
+    if (_ProjectionParams.z <= 2) discard;
 
-    float3 m = i.planeX.w * i.planeY.xyz - i.planeX.xyz * i.planeY.w;
-    float3 d = cross(i.planeX.xyz, i.planeY.xyz);
-    float numerator = dot(m, m);
-    float denominator = dot(d, d);
-    if (numerator > MAX_CUTOFF2 * denominator) discard;
-    float alpha = exp(-0.5 * numerator / denominator) * abs(i.color.a);
+    float3 ro = 0.0;//mul(unity_WorldToObject, float4(_WorldSpaceCameraPos.xyz, 1.0)).xyz;
+    float3 rd = normalize(input.world_pos);
 
-    #ifdef _WRITE_DEPTH_ON
-    float4 eval_point_diag = float4(cross(d, m) / denominator, 1);
-    float z = dot(i.MT3, eval_point_diag);
-    outDepth = EyeDepthToZBufferDepth(-z); // -Z forward viewspace
-    #endif
-
-    float4 color = float4(i.color.rgb, 1);
-    #ifdef _ALPHA_BLENDING_ON
-    color.a = alpha;
-    #endif
-    return color;
+    float dist = compute_splat_rho(ro, rd, input.pos, input.rotation, input.scale);
+    float rho = smoothstep(3.0, 0.0, dist);
+    //if (rho < MAX_CUTOFF2) discard;
+    return float4(input.color.rgb, rho * input.color.a);
 }
