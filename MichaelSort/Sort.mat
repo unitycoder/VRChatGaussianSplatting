@@ -88,7 +88,7 @@ Material:
     - _UVSec: 0
     - _ZWrite: 1
     m_Colors:
-    - _CameraPos: {r: 2.3815672, g: 1.2104061, b: 1.3332489, a: 0}
+    - _CameraPos: {r: 1.0224736, g: 1.3808565, b: -1.6745433, a: 0}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []

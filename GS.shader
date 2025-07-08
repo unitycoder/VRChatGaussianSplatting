@@ -1,4 +1,4 @@
-Shader "vrcsplat/GaussianSplattingAB"
+Shader "VRChatGaussianSplatting/GaussianSplatting"
 {
     Properties
     {
@@ -28,7 +28,7 @@ Shader "vrcsplat/GaussianSplattingAB"
             ZWrite Off
             CGPROGRAM
             #define _ALPHA_BLENDING_ON
-        	#include "GaussianSplatting.cginc"
+        	#include "GS.cginc"
             ENDCG
         }
     }

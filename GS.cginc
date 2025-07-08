@@ -13,11 +13,6 @@ Texture2D _GS_Positions, _GS_Scales, _GS_Rotations, _GS_Colors;
 float4 _GS_Positions_TexelSize;
 float _VRChatCameraMode, _AlphaCutoff, _Log2MinScale;
 
-#ifdef _STOCHASTIC_TAA_ON
-#include "TAA/TAAUtils.cginc"
-float _Decay;
-#endif
-
 #ifdef _ALPHA_BLENDING_ON
 Texture2DArray<float> _TexOrder;
 #include "MichaelSort/SortUtils.cginc"
@@ -135,12 +130,6 @@ struct v2g
 {
     float4 vertex : SV_POSITION;
     float4 objCameraPos : TEXCOORD0;
-    #ifdef _STOCHASTIC_TAA_ON
-    float4 reproj0 : TEXCOORD1;
-    float4 reproj1 : TEXCOORD2;
-    float4 reproj2 : TEXCOORD3;
-    float4 reproj3 : TEXCOORD4;
-    #endif
     UNITY_VERTEX_INPUT_INSTANCE_ID
     UNITY_VERTEX_OUTPUT_STEREO
 };
@@ -158,9 +147,6 @@ struct g2f
     float2 pos : TEXCOORD0;
     #endif
     float4 color : COLOR0;
-    #ifdef _STOCHASTIC_TAA_ON
-    float4 grabPos : COLOR1;
-    #endif
     UNITY_VERTEX_OUTPUT_STEREO
 };
 
@@ -174,15 +160,6 @@ v2g vert(appdata v)
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
 
     o.objCameraPos = mul(unity_WorldToObject, float4(_WorldSpaceCameraPos, 1));
-    #ifdef _STOCHASTIC_TAA_ON
-    float4x4 prevVP = LoadPrevVPMatrix();
-    float4x4 reproj = mul(prevVP, inverse(UNITY_MATRIX_VP));
-    o.reproj0 = reproj[0];
-    o.reproj1 = reproj[1];
-    o.reproj2 = reproj[2];
-    o.reproj3 = reproj[3];
-    o.objCameraPos.w = all(abs(prevVP - UNITY_MATRIX_VP) < 1e-5) ? 1 : -1;
-    #endif
     return o;
 }
 
@@ -200,26 +177,6 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
     uint splatCount = uint(_GS_Positions_TexelSize.z) * uint(_GS_Positions_TexelSize.w);
     uint id = geoPrimID * 32 + instanceID;
 
-    #ifdef _STOCHASTIC_TAA_ON
-    // Draw a black background
-    if (id == splatCount)
-    {
-        #ifdef _PERSPECTIVE_CORRECT_ON
-        o.planeX.x = 1.;
-        o.planeY.y = 1.;
-        o.MT3.w = -LinearEyeDepth(ALMOST_FAR_CLIP_VALUE);
-        #endif
-        o.color.a = input[0].objCameraPos.w;
-        [unroll] for (uint vtxID = 0; vtxID < 4; vtxID ++)
-        {
-            float2 quadPos = float2(vtxID & 1, (vtxID >> 1) & 1) * 2.0 - 1.0;
-            o.vertex = float4(quadPos, ALMOST_FAR_CLIP_VALUE, 1);
-            o.grabPos = ComputeGrabScreenPos(o.vertex);
-            triStream.Append(o);
-        }
-        return;
-    }
-    #endif
     if (id >= splatCount) return;
 
     SplatData splat = LoadSplatData(id);
@@ -313,11 +270,6 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
 
     #endif
 
-    #ifdef _STOCHASTIC_TAA_ON
-    o.color.a *= input[0].objCameraPos.w;
-    float4x4 reproj = float4x4(input[0].reproj0, input[0].reproj1, input[0].reproj2, input[0].reproj3);
-    #endif
-
     [unroll] for (uint vtxID = 0; vtxID < 4; vtxID ++)
     {
         float2 quadPos = float2(vtxID & 1, (vtxID >> 1) & 1) * 2.0 - 1.0;
@@ -329,10 +281,6 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
         quadPos *= 2;
         o.pos = quadPos;
         o.vertex = clipPos + quadPos.x * axis1Clip + quadPos.y * axis2Clip;
-        #endif
-
-        #ifdef _STOCHASTIC_TAA_ON
-        o.grabPos = ComputeGrabScreenPos(mul(reproj, o.vertex));
         #endif
         triStream.Append(o);
     }
@@ -378,17 +326,6 @@ float4 frag(g2f i
     float alpha = exp(-dot(i.pos, i.pos)) * abs(i.color.a);
     #endif
 
-    #ifndef _ALPHA_BLENDING_ON
-    #if !(defined(_STOCHASTIC_TAA_ON) || defined(_STOCHASTIC_ON))
-    float u = 0.135335283237;
-    #elif defined(_PERSPECTIVE_CORRECT_ON)
-    float u = random((i.vertex + i.planeX + i.planeY).xy);
-    #else
-    float u = random((i.vertex.xy + i.pos));
-    #endif
-    if (alpha < u) discard;
-    #endif
-
     #ifdef _WRITE_DEPTH_ON
     float4 eval_point_diag = float4(cross(d, m) / denominator, 1);
     float z = dot(i.MT3, eval_point_diag);
@@ -398,13 +335,6 @@ float4 frag(g2f i
     float4 color = float4(i.color.rgb, 1);
     #ifdef _ALPHA_BLENDING_ON
     color.a = alpha;
-    #endif
-
-    #ifdef _STOCHASTIC_TAA_ON
-    float4 prev = SAMPLE_GRABPASS_TEXTURE(_PrevFrame, i.grabPos.xy / i.grabPos.w);
-    bool reprojIsValid = ReprojectionIsValid(i.grabPos, i.vertex.z, prev.a, i.color.a > 0);
-    if (reprojIsValid) color = lerp(color, prev, _Decay);
-    color.a = i.vertex.z;
     #endif
     return color;
 }
