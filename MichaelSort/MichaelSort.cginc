@@ -24,11 +24,17 @@ float4 LoadTexMeans(uint id)
     return _TexMeans[uint2(id % _TexMeans_TexelSize.z, id / _TexMeans_TexelSize.z)];
 }
 
+uint float2fixed16(float v)
+{
+    return round(clamp(v, 0.0, 1.0) * 65535.0);
+}
+
 uint ComputeD(uint id)
 {
     float3 mean = LoadTexMeans(id);
     float3 d = _CameraPos - mean;
-    return f32tof16(length(d));
+    float dist_scaled = clamp(length(d) / 20.0, 0.0, 1.0);
+    return float2fixed16(dist_scaled);
 }
 
 uint4 DigitToBin(uint d)

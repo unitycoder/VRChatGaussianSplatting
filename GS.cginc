@@ -174,7 +174,7 @@ float3 unit_space_to_model(float3 p, float3 pos, float4 rot, float3 rad) {
     return q_rotate(p * rad, rot) + pos;  // rotate and scale position
 }
 
-#define BOX_SCALE 1.5
+#define BOX_SCALE 2.0
 
 float3 GetAxis(int i) {
      return (i == 0) ? float3(BOX_SCALE,0,0) : (i == 1) ? float3(0,BOX_SCALE,0) : float3(0,0,BOX_SCALE); 
