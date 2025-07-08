@@ -15,6 +15,7 @@ Shader "VRChatGaussianSplatting/GaussianSplatting"
         _ShMin ("SH Min", Float) = 0
         _ShMax ("SH Max", Float) = 0
         _TexOrder ("Splat Order", 2DArray) = "" {}
+        _SplatScale ("Splat Scale", Float) = 3.0
     }
     SubShader
     {
@@ -22,7 +23,6 @@ Shader "VRChatGaussianSplatting/GaussianSplatting"
 
         Pass
         {
-			Cull Off
             Blend SrcAlpha OneMinusSrcAlpha
             ZWrite Off
             CGPROGRAM
