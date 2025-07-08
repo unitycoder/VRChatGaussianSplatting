@@ -45,7 +45,6 @@ struct SplatData
     uint shN;
 };
 
-
 SplatData LoadSplatData(uint id)
 {
     #ifdef _ALPHA_BLENDING_ON
@@ -67,7 +66,6 @@ SplatData LoadSplatData(uint id)
     o.shN = f32tof16(means_raw.w);
     return o;
 }
-
 
 float3x3 RotationMatrixFromQuaternion(float4 quat)
 {
@@ -114,7 +112,6 @@ float4x4 inverse(float4x4 input)
     return transpose(cofactors) / determinant(input);
 }
 
-
 struct appdata
 {
     float4 vertex : POSITION;
@@ -131,7 +128,7 @@ struct v2g
 
 struct g2f
 {
-    linear noperspective centroid float4 vertex : SV_POSITION; // Wat???
+    float4 vertex : SV_POSITION;
     float4 planeX : TEXCOORD0;
     float4 planeY : TEXCOORD1;
     #ifdef _WRITE_DEPTH_ON
@@ -140,7 +137,6 @@ struct g2f
     float4 color : COLOR0;
     UNITY_VERTEX_OUTPUT_STEREO
 };
-
 
 v2g vert(appdata v)
 {
@@ -153,7 +149,6 @@ v2g vert(appdata v)
     o.objCameraPos = mul(unity_WorldToObject, float4(_WorldSpaceCameraPos, 1));
     return o;
 }
-
 
 [maxvertexcount(4)]
 [instance(32)]
@@ -176,6 +171,9 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
     // - Alpha : We should be doing alpha blending in sRGB space, but VRC uses linear, 
     //           causing splats to look more opaque than they really are.
     if (splat.color.a < _AlphaCutoff) return;
+
+    float4 splatClipPos = mul(UNITY_MATRIX_MVP, float4(splat.mean, 1));
+    if (splatClipPos.w <= 0) return;
 
     float3 objViewDir = normalize(input[0].objCameraPos.xyz - splat.mean);
     #if _SH_ORDER > 0
