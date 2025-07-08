@@ -2,7 +2,6 @@ Shader "VRChatGaussianSplatting/GaussianSplatting"
 {
     Properties
     {
-        [Toggle] _PERSPECTIVE_CORRECT ("Perspective Correct", Float) = 1
         _AlphaCutoff ("Alpha Cutoff", Float) = 0.06
         _Log2MinScale ("Log2(MinScale), if trained with mip-splatting set this to -100", Float) = -12
         [Toggle] _ONLY_SH ("Only SH", Float) = 0
