@@ -44,6 +44,8 @@ namespace GaussianSplatting
             {
                 int side = Mathf.CeilToInt(Mathf.Sqrt(count));
 
+                Debug.Log($"Importing {count} splats into {side}x{side} textures");
+
                 Texture2D xyzTex     = NewTexture(side, TextureFormat.RGBAFloat, "XYZ");
                 Texture2D colDcTex   = NewTexture(side, TextureFormat.RGBAHalf, "ColorDC");
                 Texture2D rotTex     = NewTexture(side, TextureFormat.RGBAHalf, "Rotation");
