@@ -22,6 +22,7 @@ namespace GaussianSplatting
             public Texture2D colorDc;
             public Texture2D rotation;
             public Texture2D scale;
+            public Material splatMaterial;
         }
 
         /// <summary>
@@ -47,6 +48,7 @@ namespace GaussianSplatting
                 Texture2D colDcTex   = NewTexture(side, TextureFormat.RGBAHalf, "ColorDC");
                 Texture2D rotTex     = NewTexture(side, TextureFormat.RGBAHalf, "Rotation");
                 Texture2D scaleTex   = NewTexture(side, TextureFormat.RGBAHalf, "Scale");
+                Material splatMat = new Material(Shader.Find("VRChatGaussianSplatting/GaussianSplatting"));
 
                 var xyzPixels   = new Color[side * side];
                 var colPixels   = new Color[side * side];
@@ -80,7 +82,19 @@ namespace GaussianSplatting
                     SaveTextureAsset(colDcTex,   outputFolder, "color_dc");
                     SaveTextureAsset(rotTex,     outputFolder, "rotation");
                     SaveTextureAsset(scaleTex,   outputFolder, "scale");
+                    
+                    splatMat.name = "GaussianSplatMaterial";
+                    splatMat.SetTexture("_GS_Positions", xyzTex);
+                    splatMat.SetTexture("_GS_Colors", colDcTex);
+                    splatMat.SetTexture("_GS_Rotations", rotTex);
+                    splatMat.SetTexture("_GS_Scales", scaleTex);
+
+                    string matPath = Path.Combine(outputFolder, "GaussianSplatMaterial.mat");
+                    matPath = AssetDatabase.GenerateUniqueAssetPath(matPath);
+                    AssetDatabase.CreateAsset(splatMat, matPath);
+                    AssetDatabase.SaveAssets();
                 }
+
 
                 return new Output
                 {
@@ -88,6 +102,7 @@ namespace GaussianSplatting
                     colorDc  = colDcTex,
                     rotation = rotTex,
                     scale    = scaleTex,
+                    splatMaterial = splatMat
                 };
             }
             finally

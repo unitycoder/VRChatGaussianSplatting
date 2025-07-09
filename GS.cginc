@@ -6,16 +6,16 @@
 #pragma geometry geo
 
 #include "UnityCG.cginc"
-#include "SH.cginc"
 Texture2D _GS_Positions, _GS_Scales, _GS_Rotations, _GS_Colors;
 float4 _GS_Positions_TexelSize;
-float _VRChatCameraMode, _AlphaCutoff, _Log2MinScale;
+float _VRChatCameraMode;
 float _SplatScale;
+float _Log2MinScale;
+float _AlphaCutoff;
 
-#ifdef _ALPHA_BLENDING_ON
 Texture2DArray<float> _TexOrder;
+float4 _TexOrder_TexelSize;
 #include "MichaelSort/SortUtils.cginc"
-#endif
 
 struct SplatData
 {
@@ -23,28 +23,26 @@ struct SplatData
     float3 scale;
     float4 quat;
     float4 color;
-    uint shN;
 };
 
 SplatData LoadSplatData(uint id)
 {
-    #ifdef _ALPHA_BLENDING_ON
-    uint2 coord1 = IdToUV(id);
-    uint slice = _VRChatCameraMode > 0;
-    id = ASUINT_NO_DENORM(_TexOrder[uint3(coord1, slice)]);
-    #endif
+    if(_TexOrder_TexelSize.z >= _GS_Positions_TexelSize.z) { // if valid order texture
+        uint2 coord1 = IdToUV(id);
+        uint slice = _VRChatCameraMode > 0;
+        id = ASUINT_NO_DENORM(_TexOrder[uint3(coord1, slice)]);
+    }
     uint2 coord = uint2(id % _GS_Positions_TexelSize.z, id / _GS_Positions_TexelSize.z);
     float4 means_raw = _GS_Positions[coord];
     float3 scale_raw = _GS_Scales[coord].xyz;
     // Without a low pass filter some splats can look too "thin", so we try to correct for this.
     // Only necessary if splats are trained without mip-splatting.
-    scale_raw = max(_Log2MinScale, scale_raw);
+    scale_raw = max(exp2(_Log2MinScale), scale_raw);
     SplatData o;
     o.mean = means_raw.xyz;
     o.scale = scale_raw;
     o.quat = normalize(_GS_Rotations[coord]);
     o.color = _GS_Colors[coord];
-    o.shN = f32tof16(means_raw.w);
     return o;
 }
 
@@ -258,35 +256,16 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
     float scale = clamp(sqrt(2.0 * (_SplatScale + log2(splat.color.a))), 0.1, 4.0);
     if(scale < 0.5) return; // skip splats that are too small
 
-    // // 8 cube corners in unit space
-    // static const float3 corner[8] = {
-    //     float3(-1,-1,+1), float3(+1,-1,+1), float3(+1,+1,+1), float3(-1,+1,+1),
-    //     float3(-1,-1,-1), float3(+1,-1,-1), float3(+1,+1,-1), float3(-1,+1,-1)
-    // };
-
-    // // 14-index strip that covers the cube (12 triangles)
-    // static const uint idx[14] = {0,1,3,2,6,1,5,0,4,3,7,6,4,5};
-
-    // [unroll] for (uint i = 0; i < 14; ++i)
-    // {
-    //     uint k = idx[i];
-    //     float3 local = corner[k]*scale;
-    //     float3 model = unit_space_to_model(local, splat.mean, splat.quat, splat.scale);
-
-    //     o.position = UnityObjectToClipPos(float4(model,1));
-    //     o.world_pos = q_rotate(normalize(model - objCameraPos), conj_q(splat.quat)) * rad;
-    //     triStream.Append(o);
-    // }
-    float scale_max = max(0.00001, max(splat.scale.x, max(splat.scale.y, splat.scale.z)));
+    float scale_max = max(0.005, max(splat.scale.x, max(splat.scale.y, splat.scale.z)));
     Ellipse ell = GetProjectedEllipsoid(splat.mean, 4.0 * clamp(splat.scale, scale_max * 0.1, scale_max), splat.quat);
 
-    if(any(scale * ell.size > 2.0)) return;
+    if(any(scale * ell.size > 1.75) || any(scale * ell.size < 0.001)) return; // skip splats that are too large or too small
 
     [unroll] for (uint vtxID = 0; vtxID < 4; vtxID ++)
     {
         float2 quadPos = (float2(vtxID & 1, (vtxID >> 1) & 1) * 2.0 - 1.0);
         float2x2 rot = float2x2(ell.axis.x, -ell.axis.y, ell.axis.y, ell.axis.x);
-        float2 ndc = ell.center + mul(rot, 0.25 * scale * quadPos*ell.size); // expand 0‑1 quad to full NDC
+        float2 ndc = ell.center + mul(rot, 0.25 * scale * quadPos*ell.size);
         o.position = float4(ndc, splatClipPos.z, 1.0);
         o.world_pos = float3(2.75*quadPos, 0.0);//q_rotate(normalize(model - objCameraPos), conj_q(splat.quat)) * rad;
         triStream.Append(o);
@@ -295,6 +274,7 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
 
 float4 frag(g2f input) : SV_Target
 {
+    UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
     // float3 ro = input.pos;
     // float3 rd = input.world_pos;
     // float dt = dot(rd, -ro) / dot(rd, rd);  // time to intersection
