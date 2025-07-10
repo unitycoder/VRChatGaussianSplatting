@@ -16,6 +16,25 @@ namespace GaussianSplatting
     /// </summary>
     public static class PlySplatImporter
     {
+        static uint Morton3D(float nx, float ny, float nz)
+        {
+            // Clamp & convert to 10-bit ints (0-1023)
+            uint x = (uint)Mathf.Clamp(Mathf.RoundToInt(nx * 1023f), 0, 1023);
+            uint y = (uint)Mathf.Clamp(Mathf.RoundToInt(ny * 1023f), 0, 1023);
+            uint z = (uint)Mathf.Clamp(Mathf.RoundToInt(nz * 1023f), 0, 1023);
+
+            static uint Part1By2(uint v)          // expands 10 bits → 30 with 00 in-between
+            {
+                v = (v | (v << 16)) & 0x030000FF;
+                v = (v | (v <<  8)) & 0x0300F00F;
+                v = (v | (v <<  4)) & 0x030C30C3;
+                v = (v | (v <<  2)) & 0x09249249;
+                return v;
+            }
+
+            return Part1By2(x) | (Part1By2(y) << 1) | (Part1By2(z) << 2);
+        }
+
         public struct Output
         {
             public Texture2D xyz;
@@ -46,10 +65,38 @@ namespace GaussianSplatting
 
                 Debug.Log($"Importing {count} splats into {side}x{side} textures");
 
+                InputSplatData[] data = splats.ToArray();          // managed copy – easier to sort
+                int n = data.Length;
+
+                // Compute BBOX
+                Vector3 min = new(float.MaxValue, float.MaxValue, float.MaxValue);
+                Vector3 max = new(float.MinValue, float.MinValue, float.MinValue);
+                for (int i = 0; i < n; ++i)
+                {
+                    min = Vector3.Min(min, data[i].pos);
+                    max = Vector3.Max(max, data[i].pos);
+                }
+                Vector3 size = max - min;
+                if (size.x == 0) size.x = 1e-6f;
+                if (size.y == 0) size.y = 1e-6f;
+                if (size.z == 0) size.z = 1e-6f;
+
+                // Prepare Morton keys
+                var keys = new uint[n];
+                for (int i = 0; i < n; ++i)
+                {
+                    Vector3 np = (data[i].pos - min);
+                    np.x /= size.x; np.y /= size.y; np.z /= size.z;
+                    keys[i] = Morton3D(np.x, np.y, np.z);
+                }
+
+                // Sort splats by Morton key – in-place for data[]
+                Array.Sort(keys, data);
+
                 Texture2D xyzTex     = NewTexture(side, TextureFormat.RGBAFloat, "XYZ");
-                Texture2D colDcTex   = NewTexture(side, TextureFormat.RGBAHalf, "ColorDC");
+                Texture2D colDcTex   = NewTexture(side, TextureFormat.RGBA32,   "ColorDC");
                 Texture2D rotTex     = NewTexture(side, TextureFormat.RGBAHalf, "Rotation");
-                Texture2D scaleTex   = NewTexture(side, TextureFormat.RGBAHalf, "Scale");
+                Texture2D scaleTex   = NewTexture(side, TextureFormat.RGB9e5Float, "Scale");
                 Material splatMat = new Material(Shader.Find("VRChatGaussianSplatting/GaussianSplatting"));
 
                 var xyzPixels   = new Color[side * side];
@@ -57,10 +104,8 @@ namespace GaussianSplatting
                 var rotPixels   = new Color[side * side];
                 var scalePixels = new Color[side * side];
 
-                for (int i = 0; i < splats.Length; ++i)
-                {
-                    var s = splats[i];
-
+                for (int i = 0; i < data.Length; ++i) {
+                    var s = data[i];                      
                     xyzPixels[i]   = new Color(s.pos.x,   s.pos.y,   s.pos.z,   0f);
                     colPixels[i]   = new Color(s.dc0.x,   s.dc0.y,   s.dc0.z,   s.opacity);
                     rotPixels[i]   = new Color(s.rot.x,   s.rot.y,   s.rot.z,   s.rot.w);
