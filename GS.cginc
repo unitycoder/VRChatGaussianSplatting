@@ -64,17 +64,20 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
 
     float scale = clamp(sqrt(2.0 * (_SplatScale + log2(splat.color.a))), 0.1, 4.0);
     float scale_max = max(0.005, max(splat.scale.x, max(splat.scale.y, splat.scale.z)));
-    Ellipse ell = GetProjectedEllipsoid(splat.mean, 4.0 * clamp(splat.scale, scale_max * 0.1, scale_max), splat.quat);
+    float distance = length(splat.mean - objCameraPos);
+    float3 clamped_scale = max(scale * clamp(splat.scale, scale_max * _ThinnessThreshold, scale_max), distance * 1e-3);
+    Ellipse ell = GetProjectedEllipsoid(splat.mean, clamped_scale, splat.quat);
+    float2 screenSize = float2(1.0 / _ScreenParams.xy);
 
-    if(any(scale * ell.size > 1.75) || any(scale * ell.size < 0.001)) return; // skip splats that are too large or too small
+    if(any(ell.size > 1.75) || any(ell.size < screenSize)) return; // skip splats that are too large or too small
 
     [unroll] for (uint vtxID = 0; vtxID < 4; vtxID ++)
     {
         float2 quadPos = (float2(vtxID & 1, (vtxID >> 1) & 1) * 2.0 - 1.0);
         float2x2 rot = float2x2(ell.axis.x, -ell.axis.y, ell.axis.y, ell.axis.x);
-        float2 ndc = ell.center + mul(rot, 0.25 * scale * quadPos*ell.size);
+        float2 ndc = ell.center + mul(rot, quadPos * ell.size);
         o.position = float4(ndc, splatClipPos.z, 1.0);
-        o.world_pos = float3(2.75*quadPos, 0.0);
+        o.world_pos = float3(0.5 * quadPos * _SplatScale / _GaussianScale, 0.0);
         triStream.Append(o);
     }
 }

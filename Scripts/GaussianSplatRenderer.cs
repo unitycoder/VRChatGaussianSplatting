@@ -6,12 +6,16 @@ using VRC.SDK3.Rendering;
 [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
 public class GaussianSplatRenderer : UdonSharpBehaviour
 {
+    [Header("Optional Mirror")]
+    public GameObject mirror;
+
     private Vector3 _prevPhotoCameraPos; 
     private RadixSort _radixSort;
     private MeshRenderer _meshRenderer;
     private Material keyValueMat;
     public RenderTexture splatRenderOrder;
 
+    [Header("Render Settings")]
     [SerializeField] float minSortDistance = 0.01f;
     [SerializeField] float maxSortDistance = 20.0f;
 
@@ -45,18 +49,32 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
     {
         UpdateCameraPosition(cameraPos);
         _radixSort.Sort();
+        // Copy the sorted results to the splat render order texture
         VRCGraphics.Blit(_radixSort.keyValues0, splatRenderOrder, 0, slice);
     }
 
     void Update()
     {
-        SortCamera(VRCCameraSettings.ScreenCamera.Position, 0);
+        Vector3 screenCamPos = VRCCameraSettings.ScreenCamera.Position;
+        SortCamera(screenCamPos, 0);
 
         VRCCameraSettings photoCam = VRCCameraSettings.PhotoCamera;
         if (photoCam != null && photoCam.Active && photoCam.Position != _prevPhotoCameraPos)
         {
             _prevPhotoCameraPos = photoCam.Position;
             SortCamera(photoCam.Position, 1);
+        }
+
+        if (mirror != null && mirror.activeInHierarchy)
+        {
+            Vector3 mirrorZ = mirror.transform.forward;
+            float zDist = Vector3.Dot(mirrorZ, mirror.transform.position - screenCamPos);
+            if (zDist > 0)
+            {
+                Vector3 mirrorCamPos = screenCamPos + 2 * zDist * mirrorZ;
+                _meshRenderer.material.SetVector("_MirrorCameraPos", mirrorCamPos);
+                SortCamera(mirrorCamPos, 2);
+            }
         }
     }
 }

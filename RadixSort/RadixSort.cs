@@ -50,6 +50,10 @@ public class RadixSort : UdonSharpBehaviour
         int _ImageSize = keyValues0.width;
         int _ImageSizeLog2 = Mathf.CeilToInt(Mathf.Log(_ImageSize, 2));
 
+        if(_ImageSize*_ImageSize < elementCount)  {
+            Debug.LogError("RadixSort: Element count exceeds texture size. Increase resolution of the sorting textures (must be a power of 2 size!)");
+        }
+
         computeKeyValues.SetInt("_BitsPerStep", bitsPerPass);
         computeKeyValues.SetInt("_GroupSize", groupSizeLog2);
         computeKeyValues.SetInt("_ElementCount", elementCount);

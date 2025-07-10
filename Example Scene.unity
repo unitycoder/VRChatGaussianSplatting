@@ -156,7 +156,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   launchedFromSDKPipeline: 0
   completedSDKPipeline: 0
-  blueprintId: wrld_5a26e5be-2fc0-4997-9d31-5a151dba19a0
+  blueprintId: wrld_db999528-d22a-4a71-b03c-8f21d4c1293b
   contentType: 1
   assetBundleUnityVersion: 
   fallbackStatus: 0
@@ -202,7 +202,7 @@ MonoBehaviour:
   DynamicPrefabs: []
   DynamicMaterials:
   - {fileID: 10303, guid: 0000000000000000f000000000000000, type: 0}
-  - {fileID: 2100000, guid: 05988db1c9a284d4db077c44c9cd41b6, type: 2}
+  - {fileID: 2100000, guid: 988a285189badb74498ad33a9134af79, type: 2}
   LightMapsNear: []
   LightMapsFar: []
   LightMode: 0
@@ -564,7 +564,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 05988db1c9a284d4db077c44c9cd41b6, type: 2}
+  - {fileID: 2100000, guid: faa570955beb43442ae4efe38b2a710b, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -602,13 +602,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1537595010}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.54529893, y: 0.32230908, z: -0.7314672, w: -0.2524318}
-  m_LocalPosition: {x: 0, y: 2.31, z: 0}
-  m_LocalScale: {x: 0.92, y: 0.92, z: 0.92}
+  m_LocalRotation: {x: -0.5410742, y: -0.0011537331, z: -0.84074813, w: 0.019493999}
+  m_LocalPosition: {x: 0, y: 1.17, z: -0.187}
+  m_LocalScale: {x: -0.92, y: 0.92, z: 0.92}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 131.68399, y: 252.72101, z: -1.5319824}
+  m_LocalEulerAnglesHint: {x: 181.32, y: 245.507, z: 1.8070068}
 --- !u!114 &1537595016
 MonoBehaviour:
   m_ObjectHideFlags: 2
@@ -659,7 +659,7 @@ MonoBehaviour:
   _udonSharpBackingUdonBehaviour: {fileID: 1537595016}
   splatRenderOrder: {fileID: 8400000, guid: ce4f819f4c1e4fa42b86c002ebd738f6, type: 2}
   minSortDistance: 0
-  maxSortDistance: 100
+  maxSortDistance: 40
 --- !u!114 &1537595018
 MonoBehaviour:
   m_ObjectHideFlags: 2
