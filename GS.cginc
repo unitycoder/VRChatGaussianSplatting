@@ -22,7 +22,7 @@ struct v2g {
 
 struct g2f {
     float4 position: SV_POSITION;
-    float3 world_pos: TEXCOORD0;
+    float2 splat_pos: TEXCOORD0;
     nointerpolation float4 color: TEXCOORD1;
     UNITY_VERTEX_OUTPUT_STEREO
 };
@@ -62,14 +62,21 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
     o.color = float4(GammaToLinearSpace(splat.color), splat.color.a);
     float3 rad = 1.0 / max(1e-6,splat.scale);
 
+    // All this clamping is required to avoid numerical instability of the ellipsoid projection
     float scale = clamp(sqrt(2.0 * (_SplatScale + log2(splat.color.a))), 0.1, 4.0);
     float scale_max = max(0.005, max(splat.scale.x, max(splat.scale.y, splat.scale.z)));
     float distance = length(splat.mean - objCameraPos);
-    float3 clamped_scale = max(scale * clamp(splat.scale, scale_max * _ThinnessThreshold, scale_max), distance * 1e-3);
-    Ellipse ell = GetProjectedEllipsoid(splat.mean, clamped_scale, splat.quat);
-    float2 screenSize = float2(1.0 / _ScreenParams.xy);
+    float3 clamped_scale = max(scale * clamp(splat.scale, scale_max * _ThinnessThreshold, scale_max), distance * _DistanceScaleThreshold * 0.8e-3);
+    float ratio = length(scale * splat.scale / clamped_scale) / length(float3(1,1,1));
+    o.color.a *= ratio * ratio; // fade splats that are too thin
 
-    if(any(ell.size > 1.75) || any(ell.size < screenSize)) return; // skip splats that are too large or too small
+    // Project the ellipsoid onto the screen
+    Ellipse ell = GetProjectedEllipsoid(splat.mean, clamped_scale, splat.quat);
+
+    if(any(ell.size > 1.75) || o.color.a < _AlphaCutoff) {
+        // If the splat is too large or has low alpha, we skip it.
+        return;
+    }
 
     [unroll] for (uint vtxID = 0; vtxID < 4; vtxID ++)
     {
@@ -77,14 +84,14 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
         float2x2 rot = float2x2(ell.axis.x, -ell.axis.y, ell.axis.y, ell.axis.x);
         float2 ndc = ell.center + mul(rot, quadPos * ell.size);
         o.position = float4(ndc, splatClipPos.z, 1.0);
-        o.world_pos = float3(0.5 * quadPos * _SplatScale / _GaussianScale, 0.0);
+        o.splat_pos = 0.5 * quadPos * _SplatScale / _GaussianScale;
         triStream.Append(o);
     }
 }
 
 float4 frag(g2f input) : SV_Target {
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-    float rho = input.color.a * exp(-dot(input.world_pos,input.world_pos)*0.5);
+    float rho = input.color.a * exp(-dot(input.splat_pos,input.splat_pos)*0.5);
     if (rho < 0.01) discard;  // skip regions with low density
     return float4(input.color.rgb, rho);
 }

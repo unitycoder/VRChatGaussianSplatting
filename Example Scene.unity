@@ -602,13 +602,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1537595010}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.5410742, y: -0.0011537331, z: -0.84074813, w: 0.019493999}
+  m_LocalRotation: {x: -0.49484846, y: 0.3302255, z: -0.7751687, w: -0.21257849}
   m_LocalPosition: {x: 0, y: 1.17, z: -0.187}
   m_LocalScale: {x: -0.92, y: 0.92, z: 0.92}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 181.32, y: 245.507, z: 1.8070068}
+  m_LocalEulerAnglesHint: {x: 133.751, y: 245.009, z: -0.22698975}
 --- !u!114 &1537595016
 MonoBehaviour:
   m_ObjectHideFlags: 2
@@ -657,9 +657,10 @@ MonoBehaviour:
     PrefabModifications: []
     SerializationNodes: []
   _udonSharpBackingUdonBehaviour: {fileID: 1537595016}
+  mirror: {fileID: 0}
   splatRenderOrder: {fileID: 8400000, guid: ce4f819f4c1e4fa42b86c002ebd738f6, type: 2}
   minSortDistance: 0
-  maxSortDistance: 40
+  maxSortDistance: 100
 --- !u!114 &1537595018
 MonoBehaviour:
   m_ObjectHideFlags: 2

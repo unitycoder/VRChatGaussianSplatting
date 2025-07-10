@@ -35,8 +35,8 @@ Material:
     m_Floats:
     - _BitsPerStep: 4
     - _CurrentBit: 12
-    - _ElementCount: 695556
+    - _ElementCount: 4963984
     - _GroupSize: 4
-    - _ImageSizeLog2: 11
+    - _ImageSizeLog2: 12
     m_Colors: []
   m_BuildTextureStacks: []
