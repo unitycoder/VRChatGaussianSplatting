@@ -31,7 +31,7 @@ Material:
     m_Floats:
     - _ElementCount: 2002225
     m_Colors:
-    - _CameraPos: {r: -1.994172, g: 0.3127654, b: -0.8972896, a: 0}
+    - _CameraPos: {r: -1.4182787, g: 1.216613, b: 0.66506785, a: 0}
     - _MinMaxSortDistance: {r: 0, g: 100, b: 0, a: 0}
     - _SplatToWorld0: {r: 0, g: 0, b: 0, a: 0}
     - _SplatToWorld1: {r: 0, g: 0, b: 0, a: 0}
