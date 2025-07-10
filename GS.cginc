@@ -22,7 +22,7 @@ struct v2g {
 
 struct g2f {
     float4 position: SV_POSITION;
-    float2 splat_pos: TEXCOORD0;
+    float4 splat_pos: TEXCOORD0;
     nointerpolation float4 color: TEXCOORD1;
     UNITY_VERTEX_OUTPUT_STEREO
 };
@@ -64,7 +64,7 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
 
     // All this clamping is required to avoid numerical instability of the ellipsoid projection
     float scale = clamp(sqrt(2.0 * (_SplatScale + log2(splat.color.a))), 0.1, 4.0);
-    float scale_max = max(0.005, max(splat.scale.x, max(splat.scale.y, splat.scale.z)));
+    float scale_max = max(splat.scale.x, max(splat.scale.y, splat.scale.z));
     float distance = length(splat.mean - objCameraPos);
     float3 clamped_scale = max(scale * clamp(splat.scale, scale_max * _ThinnessThreshold, scale_max), distance * _DistanceScaleThreshold * 0.8e-3);
     float ratio = length(scale * splat.scale / clamped_scale) / length(float3(1,1,1));
@@ -84,14 +84,15 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
         float2x2 rot = float2x2(ell.axis.x, -ell.axis.y, ell.axis.y, ell.axis.x);
         float2 ndc = ell.center + mul(rot, quadPos * ell.size);
         o.position = float4(ndc, splatClipPos.z, 1.0);
-        o.splat_pos = 0.5 * quadPos * _SplatScale / _GaussianScale;
+        o.splat_pos = float4(0.5 * quadPos * _SplatScale / _GaussianScale, quadPos);
         triStream.Append(o);
     }
 }
 
 float4 frag(g2f input) : SV_Target {
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-    float rho = input.color.a * exp(-dot(input.splat_pos,input.splat_pos)*0.5);
+    float2 steps = smoothstep(1.0, 0.9, abs(input.splat_pos.zw)); //make quad edges softer
+    float rho = steps.x * steps.y * input.color.a * exp(-dot(input.splat_pos,input.splat_pos)*0.5);
     if (rho < 0.01) discard;  // skip regions with low density
     return float4(input.color.rgb, rho);
 }

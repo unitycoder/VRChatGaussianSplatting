@@ -39,11 +39,18 @@ SplatData LoadSplatData(uint id) {
 }
 
 SplatData LoadSplatDataRenderOrder(uint id) {
-    if(_GS_RenderOrder_TexelSize.z >= _GS_Positions_TexelSize.z) { // if valid order texture
+    bool validOrder = _GS_RenderOrder_TexelSize.z >= _GS_Positions_TexelSize.z;
+    if(validOrder) { // if valid order texture
         uint2 coord1 = IndexToUV(id);
         bool inMirror = _VRChatMirrorMode > 0 && all(abs(_VRChatMirrorCameraPos - _MirrorCameraPos) < 1e-4);
         uint slice = inMirror ? 2 : (_VRChatCameraMode > 0);
         id = _GS_RenderOrder[uint3(coord1, slice)];
     }
-    return LoadSplatData(id);
+    SplatData data = LoadSplatData(id);
+    if(!validOrder)
+    {
+        float max_comp = max(data.scale.x, max(data.scale.y, data.scale.z));
+        data.scale = 0.005; // only for scene editor view;
+    }
+    return data;
 }

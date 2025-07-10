@@ -39,3 +39,9 @@ In VRChat the only way to render splats is by drawing them as quad billboards, w
 
 Since you get an ellipse on the screen you can just use it to compute a gaussian on the screen with the same shape, this is slightly less accurate than [perspective correct gaussian splatting](https://fhahlbohm.github.io/htgs/), but its much faster and still has perspective correct outlines.
 There is a large drawback however - it's very numerically unstable for thin ellipsoids, which requires lots of clever clamping to avoid these cases. 
+
+## TODO
+
+* Spherical harmonics support
+* Better image compression 
+* Animated / Multiple gaussian splats in scene?

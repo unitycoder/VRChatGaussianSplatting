@@ -33,7 +33,7 @@ Shader "VRChatGaussianSplatting/ComputeKeyValue" {
                 float3 splat_pos = mul(_SplatToWorld, float4(splat.mean, 1.0)).xyz;
                 float dist = length(_CameraPos - splat_pos);
                 float dist_norm = (dist - _MinMaxSortDistance.x) / (_MinMaxSortDistance.y - _MinMaxSortDistance.x);
-                return float2fixed16(1.0 - dist_norm);
+                return float2fixed16(1.0 - sqrt(dist_norm));
             }
 
             float2 frag (v2f i) : SV_Target {

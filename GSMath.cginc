@@ -105,7 +105,7 @@ float4x4 InverseSplat(float3 t, float3 s, float4 q) {
 Ellipse GetProjectedEllipsoid(float3 pos, float3 scale, float4 rotation) {
     float4x4 S_inv = InverseSplat(pos, scale, rotation);
     float4x4 clipToView = CreateClipToViewMatrix(); // inverse(UNITY_MATRIX_P)
-    float4x4 inv = mul(S_inv, mul(unity_WorldToObject, mul(UNITY_MATRIX_I_V, clipToView)));
+    float4x4 inv = mul(S_inv, mul(transpose(UNITY_MATRIX_IT_MV), clipToView));
 
     float4x4 Q0 = float4x4(1,0,0,0,
                            0,1,0,0,

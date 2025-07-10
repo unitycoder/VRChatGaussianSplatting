@@ -24,8 +24,6 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
         _radixSort = (RadixSort)GetComponent<RadixSort>();
         _meshRenderer = GetComponent<MeshRenderer>();
         _prevPhotoCameraPos.x = float.MaxValue; // Initialize to a large value to ensure first update runs
-
-        UpdateMaterials();
     }
 
     void UpdateMaterials()
@@ -55,6 +53,8 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
 
     void Update()
     {
+        UpdateMaterials();
+
         Vector3 screenCamPos = VRCCameraSettings.ScreenCamera.Position;
         SortCamera(screenCamPos, 0);
 
