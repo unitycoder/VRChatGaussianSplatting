@@ -202,7 +202,7 @@ MonoBehaviour:
   DynamicPrefabs: []
   DynamicMaterials:
   - {fileID: 10303, guid: 0000000000000000f000000000000000, type: 0}
-  - {fileID: 2100000, guid: f811a2f1cafd42643a7be15954d08d40, type: 2}
+  - {fileID: 2100000, guid: 86149382ad2bdb74d948fe0d78ed8627, type: 2}
   LightMapsNear: []
   LightMapsFar: []
   LightMode: 0
@@ -564,7 +564,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: f811a2f1cafd42643a7be15954d08d40, type: 2}
+  - {fileID: 2100000, guid: 86149382ad2bdb74d948fe0d78ed8627, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -603,7 +603,7 @@ Transform:
   m_GameObject: {fileID: 1537595010}
   serializedVersion: 2
   m_LocalRotation: {x: -0.42441458, y: 0.009887187, z: -0.90540266, w: 0.0045282845}
-  m_LocalPosition: {x: 0, y: 1.04, z: -0.187}
+  m_LocalPosition: {x: 0, y: 5.22, z: -0.08}
   m_LocalScale: {x: -1.72, y: 1.72, z: 1.72}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -660,7 +660,7 @@ MonoBehaviour:
   mirror: {fileID: 0}
   splatRenderOrder: {fileID: 8400000, guid: ce4f819f4c1e4fa42b86c002ebd738f6, type: 2}
   minSortDistance: 0
-  maxSortDistance: 60
+  maxSortDistance: 200
 --- !u!114 &1537595018
 MonoBehaviour:
   m_ObjectHideFlags: 2

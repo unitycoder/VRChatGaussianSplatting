@@ -17,6 +17,8 @@ Shader "VRChatGaussianSplatting/GaussianSplatting"
         _AlphaCutoff ("Alpha Cutoff", Range(0, 1)) = 0.045
         _Exposure ("Exposure", Range(0, 10)) = 1.0
         _Opacity ("Opacity", Range(0, 10)) = 1.0
+
+        [HideInInspector] _HACK_UNIFORM ("hack", Float) = 1.0 // HACK to avoid compiler optimizing out double precision
     }
     SubShader
     {

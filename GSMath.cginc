@@ -1,3 +1,5 @@
+#include "ExFloat.cginc"
+
 // rotate vector v by quaternion q
 float3 q_rotate(float3 v, float4 q) {
     float3 t  = 2.0f * cross(q.xyz, v);
@@ -21,7 +23,7 @@ float3x3 unit(float a) {
 }
 
 float safe_divide(float a, float b) {
-    return (abs(b) > 1e-6) ? a / b : 0.0;
+    return (b != 0.0) ? a / b : 0.0;
 }
 
 float3x3 quat_to_mat(float4 q) {
@@ -94,38 +96,92 @@ float4x4 CreateClipToViewMatrix()
     return result;
 }
 
-float4x4 InverseSplat(float3 t, float3 s, float4 q) {
-    float3x3 R   = quat_to_mat(q);
-    float3x3 Rt  = transpose(R);                  
+float4x4 Translation(float3 t) {
+    return float4x4(1, 0, 0, t.x,
+                    0, 1, 0, t.y,
+                    0, 0, 1, t.z,
+                    0, 0, 0, 1);
+}
+
+float4x4 RotationScaleInverse(float4 q, float3 s) {
+    float3x3 R = quat_to_mat(q);
+    float3x3 Rt = transpose(R);
     float3x3 Pinv = float3x3(Rt[0] / s.x, Rt[1] / s.y, Rt[2] / s.z);
-    float3 trans = -mul(Pinv, t);
-    return float4x4(Pinv[0], trans.x, Pinv[1], trans.y, Pinv[2], trans.z, 0, 0, 0, 1);
+    return float4x4(Pinv[0], 0, Pinv[1], 0, Pinv[2], 0, 0, 0, 0, 1);
 }
-    
+
+float4x4 InverseSplat(float3 t, float3 s, float4 q) {
+    float4x4 T_inv = Translation(-t);
+    float4x4 R_inv = RotationScaleInverse(q, s);
+    return mul(R_inv, T_inv);
+}
+
+float dotM(float4 a, float4 b)
+{
+    static const float4 s = float4(1.0, 1.0, 1.0, -1.0);
+    return dot(a * s, b);
+}
+
 Ellipse GetProjectedEllipsoid(float3 pos, float3 scale, float4 rotation) {
-    float4x4 S_inv = InverseSplat(pos, scale, rotation);
-    float4x4 clipToView = CreateClipToViewMatrix(); // inverse(UNITY_MATRIX_P)
-    float4x4 inv = mul(S_inv, mul(transpose(UNITY_MATRIX_IT_MV), clipToView));
+    float4x4 S_inv   = InverseSplat(pos, scale, rotation);
+    float4x4 P_inv   = CreateClipToViewMatrix(); // inverse(UNITY_MATRIX_P)
+    float4x4 MV_inv  = transpose(UNITY_MATRIX_IT_MV);
+    float4x4 inv = mul(S_inv, mul(MV_inv, P_inv));
 
-    float4x4 Q0 = float4x4(1,0,0,0,
-                           0,1,0,0,
-                           0,0,1,0,
-                           0,0,0,-1);
-    float4x4 Q = mul(transpose(inv), mul(Q0, inv));
+    float4x4 Q0 = float4x4(
+        1,0,0,0,
+        0,1,0,0,
+        0,0,1,0,
+        0,0,0,-1
+    );
 
-    float A = Q[2][2];
-    float3 B = float3(Q[0][2], Q[1][2], Q[3][2]);
-    float3x3 C = float3x3(Q[0][0], Q[0][1], Q[0][3],
-                          Q[1][0], Q[1][1], Q[1][3],
-                          Q[3][0], Q[3][1], Q[3][3]);
-    float3x3 C2 = outer_product(B, B) - A * C;
+    double_4x4 Q_df = dmat_mul(to_dmat(transpose(inv)), to_dmat(mul(Q0, inv)));
 
-    float _a = C2[0][0]; 
-    float _b = 2.0 * C2[0][1];
-    float _c = C2[1][1];
-    float _d = 2.0 * C2[0][2];
-    float _e = 2.0 * C2[1][2];
-    float _f = C2[2][2];
+    // 1) extract the 1×1 scalar A and the 3-vector B from Q_df
+    float2 A_df = Q_df.m[2][2];
+    float2 B0   = Q_df.m[0][2];
+    float2 B1   = Q_df.m[1][2];
+    float2 B2   = Q_df.m[3][2];
 
+    // 2) extract the 3×3 submatrix C
+    float2 C_df[3][3];
+    C_df[0][0] = Q_df.m[0][0];  C_df[0][1] = Q_df.m[0][1];  C_df[0][2] = Q_df.m[0][3];
+    C_df[1][0] = Q_df.m[1][0];  C_df[1][1] = Q_df.m[1][1];  C_df[1][2] = Q_df.m[1][3];
+    C_df[2][0] = Q_df.m[3][0];  C_df[2][1] = Q_df.m[3][1];  C_df[2][2] = Q_df.m[3][3];
+
+    // 3) compute outer = B ⊗ B, and scalarC = A * C, then C2 = outer - scalarC
+    float2 outer_df[3][3];
+    float2 scalarC_df[3][3];
+    float2 C2_df[3][3];
+
+    [unroll]
+    for (uint i = 0; i < 3; ++i) {
+        // pick the i-th component of B
+        float2 Bi = (i == 0 ? B0 : (i == 1 ? B1 : B2));
+
+        // outer product row i
+        outer_df[i][0] = df64_mul(Bi, B0);
+        outer_df[i][1] = df64_mul(Bi, B1);
+        outer_df[i][2] = df64_mul(Bi, B2);
+
+        // A * C row i
+        scalarC_df[i][0] = df64_mul(A_df, C_df[i][0]);
+        scalarC_df[i][1] = df64_mul(A_df, C_df[i][1]);
+        scalarC_df[i][2] = df64_mul(A_df, C_df[i][2]);
+
+        // difference row i
+        C2_df[i][0] = df64_sub(outer_df[i][0], scalarC_df[i][0]);
+        C2_df[i][1] = df64_sub(outer_df[i][1], scalarC_df[i][1]);
+        C2_df[i][2] = df64_sub(outer_df[i][2], scalarC_df[i][2]);
+    }
+
+    // 4) pull off the six scalar coefficients (hi-parts) and call extractEllipse
+    float _a = C2_df[0][0].x;
+    float _b = C2_df[0][1].x * 2.0;
+    float _c = C2_df[1][1].x;
+    float _d = C2_df[0][2].x * 2.0;
+    float _e = C2_df[1][2].x * 2.0;
+    float _f = C2_df[2][2].x;
+    
     return extractEllipse(_a, _c, _b, _d, _e, _f);
-}
+} 

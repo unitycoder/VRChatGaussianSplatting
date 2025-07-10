@@ -54,8 +54,8 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
     if (splat.color.a < _AlphaCutoff) return; // skip splats with low alpha
 
     float4 splatClipPos = mul(UNITY_MATRIX_MVP, float4(splat.mean, 1));
+    if (splatClipPos.w <= 0) return; // behind camera
     splatClipPos.xyz /= splatClipPos.w; // perspective divide
-    if (splatClipPos.z <= 0) return; // behind camera
     if (all(splatClipPos.xy < -1.0) || all(splatClipPos.xy > 1.0)) return; // outside of view frustum
 
     float3 objCameraPos = mul(unity_WorldToObject, float4(_WorldSpaceCameraPos, 1)).xyz;
