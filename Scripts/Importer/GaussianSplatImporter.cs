@@ -94,8 +94,8 @@ namespace GaussianSplatting
                 Array.Sort(keys, data);
 
                 Texture2D xyzTex     = NewTexture(side, TextureFormat.RGBAFloat, "XYZ");
-                Texture2D colDcTex   = NewTexture(side, TextureFormat.RGBA32,   "ColorDC");
-                Texture2D rotTex     = NewTexture(side, TextureFormat.RGBAHalf, "Rotation");
+                Texture2D colDcTex   = NewTexture(side, TextureFormat.RGBA32, "ColorDC");
+                Texture2D rotTex     = NewTexture(side, TextureFormat.RGBA32, "Rotation");
                 Texture2D scaleTex   = NewTexture(side, TextureFormat.RGB9e5Float, "Scale");
                 Material splatMat = new Material(Shader.Find("VRChatGaussianSplatting/GaussianSplatting"));
 
@@ -108,7 +108,10 @@ namespace GaussianSplatting
                     var s = data[i];                      
                     xyzPixels[i]   = new Color(s.pos.x,   s.pos.y,   s.pos.z,   0f);
                     colPixels[i]   = new Color(s.dc0.x,   s.dc0.y,   s.dc0.z,   s.opacity);
-                    rotPixels[i]   = new Color(s.rot.x,   s.rot.y,   s.rot.z,   s.rot.w);
+                    rotPixels[i]   = new Color(0.5f + 0.5f * s.rot.x, 
+                                                0.5f + 0.5f * s.rot.y, 
+                                                0.5f + 0.5f * s.rot.z, 
+                                                0.5f + 0.5f * s.rot.w);
                     scalePixels[i] = new Color(s.scale.x, s.scale.y, s.scale.z, 0f);
                 }
 

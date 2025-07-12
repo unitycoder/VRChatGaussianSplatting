@@ -8,25 +8,27 @@ Shader "VRChatGaussianSplatting/GaussianSplatting"
         [HideInInspector] _GS_Colors ("Colors", 2D) = "" {}
         [HideInInspector] _GS_RenderOrder ("Rendering Orders", 2DArray) = "" {}
         [HideInInspector] _MirrorCameraPos ("Mirror Camera Position", Vector) = (0, 0, 0, 0)
-        
-        _SplatScale ("Splat Scale", Range(0, 8)) = 4.5
-        _GaussianScale ("Gaussian Scale", Range(0, 8)) = 1.0
-        _ThinnessThreshold ("Thinness Threshold", Range(0, 1)) = 0.025
-        _DistanceScaleThreshold ("Distance Scale Threshold", Range(0, 5.0)) = 1.25
-        _Log2MinScale ("Log2 Min Scale", Range(-20, 10)) = -12.0
-        _AlphaCutoff ("Alpha Cutoff", Range(0, 1)) = 0.045
-        _Exposure ("Exposure", Range(0, 10)) = 1.0
-        _Opacity ("Opacity", Range(0, 10)) = 1.0
-
         [HideInInspector] _HACK_UNIFORM ("hack", Float) = 1.0 // HACK to avoid compiler optimizing out double precision
+        //[HideInInspector] [Toggle] _EditorMode ("Editor Mode", Float) = 1.0
+
+        _SplatScale ("Quad Scale", Range(0, 2)) = 0.75
+        _GaussianScale ("Gaussian Scale", Range(0, 2)) = 1.2
+        _ThinThreshold ("Thinness Threshold", Range(0, 1)) = 0.005
+        _DistanceScale ("Distance Scale Threshold", Range(0, 5.0)) = 0.33
+        _Log2MinScale ("Log2 Min Scale", Range(-20, 10)) = -12.0
+        _AlphaCutoff ("Alpha Cutoff", Range(0, 1)) = 0.03
+        _ScaleCutoff ("Scale Cutoff", Range(0, 100)) = 100.0
+        _Exposure ("Exposure", Range(0, 5)) = 1.0
+        _Opacity ("Opacity", Range(0, 5)) = 1.0
     }
     SubShader
     {
-        Tags { "Queue" = "Transparent" }
+        Tags { "RenderType"="Transparent" "Queue"="Transparent+500" }
 
         Pass
         {
-            Blend SrcAlpha OneMinusSrcAlpha
+            Blend One OneMinusSrcAlpha
+            //Blend OneMinusDstAlpha One
             Cull Off
             ZWrite Off
             CGPROGRAM

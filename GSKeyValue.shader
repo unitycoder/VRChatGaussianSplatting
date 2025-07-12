@@ -24,7 +24,6 @@ Shader "VRChatGaussianSplatting/ComputeKeyValue" {
             float3 _CameraPos;
             float2 _MinMaxSortDistance;
             int _ElementCount;
-            float _CameraPosQuantization; // to avoid jittering of the rendering order
 
             uint float2fixed16(float v) {
                 return round(clamp(v, 0.0, 1.0) * 65535.0);
@@ -33,10 +32,14 @@ Shader "VRChatGaussianSplatting/ComputeKeyValue" {
             uint ComputeD(uint id) {
                 SplatData splat = LoadSplatData(id);
                 float3 splat_pos = mul(_SplatToWorld, float4(splat.mean, 1.0)).xyz;
-                float3 cam_pos_quantized = round(_CameraPos / _CameraPosQuantization) * _CameraPosQuantization;
-                float dist = length(cam_pos_quantized - splat_pos);
+                float dist = length(_CameraPos - splat_pos);
                 float dist_norm = (dist - _MinMaxSortDistance.x) / (_MinMaxSortDistance.y - _MinMaxSortDistance.x);
-                return float2fixed16(1.0 - sqrt(dist_norm));
+                return float2fixed16(1.0-sqrt(dist_norm));
+
+                // float3 pos = mul(_SplatToView, float4(splat.mean, 1)).xyz;
+                // float dist = abs(pos.z);
+                // float dist_norm = (dist - _MinMaxSortDistance.x) / (_MinMaxSortDistance.y - _MinMaxSortDistance.x);
+                // return float2fixed16(1.0 - sqrt(dist_norm));
             }
 
             float2 frag (v2f i) : SV_Target {

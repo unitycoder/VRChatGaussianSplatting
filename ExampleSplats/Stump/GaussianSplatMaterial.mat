@@ -1,0 +1,60 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: GaussianSplatMaterial
+  m_Shader: {fileID: 4800000, guid: f531a645849e0b067b8b09de4f72f60d, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _GS_Colors:
+        m_Texture: {fileID: 2800000, guid: eb5d828bb54a54448b0822e7d3189485, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _GS_Positions:
+        m_Texture: {fileID: 2800000, guid: ef607aa187a74e846b62fed11a5f2635, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _GS_RenderOrder:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _GS_Rotations:
+        m_Texture: {fileID: 2800000, guid: e2aaedb48b9c5a446bfc526094960c06, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _GS_Scales:
+        m_Texture: {fileID: 2800000, guid: d3fb75a02a5ae5a478bfe86a72ba2f5c, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _AlphaCutoff: 0.03
+    - _DistanceScale: 0.33
+    - _Exposure: 1
+    - _GaussianScale: 1.2
+    - _HACK_UNIFORM: 1
+    - _Log2MinScale: -12
+    - _Opacity: 1
+    - _ScaleCutoff: 100
+    - _SplatScale: 0.75
+    - _ThinThreshold: 0.005
+    m_Colors:
+    - _MirrorCameraPos: {r: 0, g: 0, b: 0, a: 0}
+  m_BuildTextureStacks: []
