@@ -38,7 +38,7 @@ This radix sort could potentially be used for other rendering/simulation applica
 In VRChat the only way to render splats is by drawing them as quad billboards, which introduces significant overdraw especially if the quad is not optimally tight around the splat. To try to optimize this as much as possible I wrote an Ellipsoid to Ellipse projector, which finds the actual projected outline of a given gaussian splat isosurface (some code taken from https://www.shadertoy.com/view/Nl2Szm and some help from ChatGPT figuring out how to use the projection matrix).
 
 Since you get an ellipse on the screen you can just use it to compute a gaussian on the screen with the same shape, this is slightly less accurate than [perspective correct gaussian splatting](https://fhahlbohm.github.io/htgs/), but its much faster and still has perspective correct outlines.
-There is a large drawback however - it's very numerically unstable for thin ellipsoids, which requires lots of clever clamping to avoid these cases. 
+There is a large drawback however - it's very numerically unstable for thin ellipsoids. Specifically the estimation of the ellipse screen coefficients, to properly compute it I resorted to use extended precision float's, basically pairs of floats to emulate a float with 48bits of mantissa, it works, but required a hack to make sure the compiler doesnt optimize out the operations that make it work. 
 
 ## TODO
 
