@@ -44,6 +44,18 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
         }
     }
 
+    void DeactivateSplatObjects()
+    {
+        for (int i = 0; i < splatObjects.Length; i++)
+        {
+            GameObject splatObj = splatObjects[i];
+            if (splatObj != null)
+            {
+                splatObj.SetActive(false);
+            }
+        }
+    }
+
     public void SetSplatObjectIndex(int index)
     {
         if (prevSplatObjectIndex == index)
@@ -56,16 +68,9 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
             Debug.LogError($"Invalid splat object index: {index}. Must be between 0 and {splatObjects.Length - 1}.");
             return;
         }
-
-        if(prevSplatObjectIndex >= 0 && prevSplatObjectIndex < splatObjects.Length)
-        {
-            // Deactivate the previous splat object if it exists
-            GameObject prevSplatObject = splatObjects[prevSplatObjectIndex];
-            if (prevSplatObject != null)
-            {
-                prevSplatObject.SetActive(false);
-            }
-        }
+        
+        ResetCameraPositions();
+        DeactivateSplatObjects();
 
         prevSplatObjectIndex = splatObjectIndex; // Store the previous index before changing
         splatObjectIndex = index;
@@ -77,8 +82,6 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
             return;
         }
         splatObject.SetActive(true); // Activate the new splat object
-
-        ResetCameraPositions();
     }
 
     void Start()

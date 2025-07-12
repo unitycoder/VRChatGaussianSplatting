@@ -56,7 +56,8 @@ SplatData LoadSplatDataRenderOrder(uint id, float3 camPos) {
     if(!validOrder)
     {
         float dist = length(data.mean - camPos);
-        data.scale = 0.0005 * dist;
+        data.color.xyz *= 0.25;
+       // data.scale = 0.0005 * dist;
     }
     return data;
 }

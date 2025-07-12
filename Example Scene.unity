@@ -562,9 +562,9 @@ MonoBehaviour:
   useAssignedLayers: 0
   DynamicPrefabs: []
   DynamicMaterials:
+  - {fileID: 10303, guid: 0000000000000000f000000000000000, type: 0}
   - {fileID: 2100000, guid: 21abf9a295dc8844695945c2b6554d3e, type: 2}
   - {fileID: 2100000, guid: 05988db1c9a284d4db077c44c9cd41b6, type: 2}
-  - {fileID: 10303, guid: 0000000000000000f000000000000000, type: 0}
   - {fileID: 2100000, guid: 0c85f20f408f636498755f41a6ac0858, type: 2}
   - {fileID: 2100000, guid: 01f178fdec07dd2468d52dc224cd809a, type: 2}
   - {fileID: 2100000, guid: 2903bc4e93e54794eab7914f69e77031, type: 2}
