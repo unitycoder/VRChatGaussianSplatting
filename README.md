@@ -5,7 +5,10 @@ Gaussian splatting implementation in VRChat
 2. Optionally you can just clone this repo instead (might have more up to date features)
 3. Import a .ply file using the built-in importer in the top main menu bar `Gaussian Splatting / Import .PLY Splat...`
 4. Select output folder for the imported data
-5. Replace the material of the `splat` game object in the example scene with the imported one and click play
+5. Replace the material of any of the splat objects under the splats gameobject, or add a new one (must have the point mesh). 
+6. Add the splat object to the GaussianSplattingRenderer object, which has a component with the same name with a list of splats.
+7. That components can only render one splat at a time, so it has a UdonSynced index of the currently rendered object, you need to change it to the splat you want to see.
+8. Additionally you can tune both the gaussian splat material, and the sorting settings (min max distance and camera position quantization)
 
 > [!TIP]
 > When using this in VRChat it is recommended for you to turn off MSAA, as it reduces the performance drastically and makes no visual difference for the splats
