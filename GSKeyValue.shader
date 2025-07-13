@@ -17,13 +17,12 @@ Shader "VRChatGaussianSplatting/ComputeKeyValue" {
             #pragma vertex   vert
             #pragma fragment frag
 
-            #include "RadixSort/BlitBase.cginc"
+            #include "RadixSort/RadixSort.cginc"
             #include "GSData.cginc"
 
             float4x4 _SplatToWorld;
             float3 _CameraPos;
             float2 _MinMaxSortDistance;
-            int _ElementCount;
 
             uint float2fixed16(float v) {
                 return round(clamp(v, 0.0, 1.0) * 65535.0);

@@ -68,7 +68,7 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
             Debug.LogError($"Invalid splat object index: {index}. Must be between 0 and {splatObjects.Length - 1}.");
             return;
         }
-        
+
         ResetCameraPositions();
         DeactivateSplatObjects();
 
@@ -129,10 +129,10 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
         keyValueMat.SetMatrix("_SplatToWorld", splatObject.transform.localToWorldMatrix);
     }
 
-    void SortCamera(Vector3 cameraPos, int cameraID)
+    void SortCamera(Vector3 cameraPos, int cameraID, bool forceUpdate = false)
     {
         Vector3 quantizedPos = QuantizePosition(cameraPos);
-        if (quantizedPos == _prevCameraPos[cameraID] && !alwaysUpdate)
+        if (quantizedPos == _prevCameraPos[cameraID] && !alwaysUpdate && !forceUpdate)
         {
             // No change in camera position, skip update
             return;
@@ -161,7 +161,7 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
             {
                 Vector3 mirrorCamPos = screenCamPos + 2 * zDist * mirrorZ;
                 _meshRenderer.material.SetVector("_MirrorCameraPos", mirrorCamPos);
-                SortCamera(mirrorCamPos, 2);
+                SortCamera(mirrorCamPos, 2, true);
             }
         }
     }

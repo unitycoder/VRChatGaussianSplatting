@@ -31,7 +31,7 @@ Shader "Misha/RadixSort"
                 uint2 pixel = floor(i.pos.xy);
                 uint morton = UVToIndex(pixel);
 
-                uint elementsLog2 = _ImageSizeLog2 * 2;
+                uint elementsLog2 = _ImageElementsLog2;
                 uint groupsLog2 = elementsLog2 - _GroupSize;
                 uint digitIndex = morton >> groupsLog2;
                 uint keyIndex = (morton - (digitIndex << groupsLog2)) << _GroupSize;
@@ -76,7 +76,7 @@ Shader "Misha/RadixSort"
                 // Do binary search for the key value in the prefix sum by summing/going over the mips 
                 uint _ImageSize = _KeyValues_TexelSize.z;
                 uint prefixWidth = (_ImageSize << (_BitsPerStep >> 1)) >> (_GroupSize >> 1);
-                uint elementsLog2 = _ImageSizeLog2 * 2;
+                uint elementsLog2 = _ImageElementsLog2;
                 uint groupsLog2 = elementsLog2 - _GroupSize;
                 uint count;
                 int2 activePixel = ActiveTexelIndexToUV(_PrefixSums, prefixWidth, index, count);
