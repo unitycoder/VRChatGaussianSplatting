@@ -10,7 +10,7 @@ float3 _MirrorCameraPos, _VRChatMirrorCameraPos;
 float _SplatScale;
 float _GaussianScale;
 float _ThinThreshold;
-float _DistanceScale;
+float _AntiAliasing;
 float _Log2MinScale;
 float _AlphaCutoff;
 float _Exposure;

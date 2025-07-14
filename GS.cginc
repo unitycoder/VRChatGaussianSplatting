@@ -74,7 +74,7 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
     // All this clamping is required to avoid numerical instability of the ellipsoid projection
     float scale = _SplatScale * sqrt(2);//*sqrt( -log2(splat.color.a));
     float scale_max = max(splat.scale.x, max(splat.scale.y, splat.scale.z));
-    float3 clamped_scale = max(clamp(splat.scale, scale_max * _ThinThreshold, scale_max), cameraDistance * _DistanceScale * 0.8e-3);
+    float3 clamped_scale = clamp(splat.scale, scale_max * _ThinThreshold, scale_max);
 
     // Project the ellipsoid onto the screen
     Ellipse ell = GetProjectedEllipsoid(splat.mean, scale * 2.0 * clamped_scale, splat.quat);
@@ -83,7 +83,7 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
         return;
     }
 
-    float minDist = 1.75 / max(_ScreenParams.x, _ScreenParams.y);
+    float minDist = _AntiAliasing / min(_ScreenParams.x, _ScreenParams.y);
     float area = ell.size.x * ell.size.y;
     ell.size = max(ell.size, minDist); // ensure minimum size
     float areaPost = ell.size.x * ell.size.y;
@@ -107,9 +107,9 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
 
 float4 frag(g2f input) : SV_Target {
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-    float2 steps = smoothstep(1.0, 0.9, abs(input.splat_pos.zw)); //make quad edges softer
+    float2 steps = smoothstep(1.0, 0.85, abs(input.splat_pos.zw)); //make quad edges softer
     float rho = steps.x * steps.y * input.color.a * exp(-dot(input.splat_pos,input.splat_pos));
-    if (rho < 0.001) discard;  // skip regions with low density
+    if (rho < 0.01) discard;  // skip regions with low density
     bool validOrder = _GS_RenderOrder_TexelSize.z >= _GS_Positions_TexelSize.z;
     if(!validOrder) return float4(0.5 * input.color.rgb * rho, 0.0);
     return float4(input.color.rgb * rho, rho);
