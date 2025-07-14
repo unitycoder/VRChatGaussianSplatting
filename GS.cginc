@@ -45,7 +45,9 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
     uint splatCount = uint(_GS_Positions_TexelSize.z) * uint(_GS_Positions_TexelSize.w);
     uint id = geoPrimID * 32 + instanceID;
 
-    if (id >= splatCount) return;
+    if (id >= splatCount || (id >= _DisplayFirstNSplats && _DisplayFirstNSplats > 0)) {
+        return; // skip if out of bounds or beyond the display limit
+    }
 
     g2f o;
     UNITY_SETUP_INSTANCE_ID(input[0]);
@@ -87,7 +89,6 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
     if (o.color.a < _AlphaCutoff || isnan(o.color.a)) {
         return; // skip splats with too small area or invalid alpha
     }
-    
 
     [unroll] for (uint vtxID = 0; vtxID < 4; vtxID ++)
     {

@@ -86,6 +86,7 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
 
     void Start()
     {
+        VRCCameraSettings.ScreenCamera.AllowMSAA = false; // MSAA is too slow for Gaussian Splatting, disable it
         _radixSort = (RadixSort)GetComponent<RadixSort>();
         if (_radixSort == null)
         {

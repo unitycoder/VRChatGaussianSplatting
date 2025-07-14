@@ -16,6 +16,7 @@ float _AlphaCutoff;
 float _Exposure;
 float _Opacity;
 float _ScaleCutoff;
+int _DisplayFirstNSplats;
 
 struct SplatData {
     float3 mean;

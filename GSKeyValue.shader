@@ -33,12 +33,8 @@ Shader "VRChatGaussianSplatting/ComputeKeyValue" {
                 float3 splat_pos = mul(_SplatToWorld, float4(splat.mean, 1.0)).xyz;
                 float dist = length(_CameraPos - splat_pos);
                 float dist_norm = (dist - _MinMaxSortDistance.x) / (_MinMaxSortDistance.y - _MinMaxSortDistance.x);
-                return float2fixed16(1.0-sqrt(dist_norm));
-
-                // float3 pos = mul(_SplatToView, float4(splat.mean, 1)).xyz;
-                // float dist = abs(pos.z);
-                // float dist_norm = (dist - _MinMaxSortDistance.x) / (_MinMaxSortDistance.y - _MinMaxSortDistance.x);
-                // return float2fixed16(1.0 - sqrt(dist_norm));
+                return float2fixed16(sqrt(dist_norm)); //Front to back sorting
+                //return float2fixed16(1.0 - sqrt(dist_norm)); //Back to front sorting
             }
 
             float2 frag (v2f i) : SV_Target {

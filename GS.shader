@@ -20,6 +20,7 @@ Shader "VRChatGaussianSplatting/GaussianSplatting"
         _ScaleCutoff ("Scale Cutoff", Range(0, 100)) = 100.0
         _Exposure ("Exposure", Range(0, 5)) = 1.0
         _Opacity ("Opacity", Range(0, 5)) = 1.0
+        _DisplayFirstNSplats ("Display First N Splats", Int) = 0
     }
     SubShader
     {
@@ -27,8 +28,8 @@ Shader "VRChatGaussianSplatting/GaussianSplatting"
 
         Pass
         {
-            Blend One OneMinusSrcAlpha
-            //Blend OneMinusDstAlpha One
+            //Blend One OneMinusSrcAlpha //Back to front blending
+            Blend OneMinusDstAlpha One //Front to back blending
             Cull Off
             ZWrite Off
             CGPROGRAM

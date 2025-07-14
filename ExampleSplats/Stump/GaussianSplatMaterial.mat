@@ -46,6 +46,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _AlphaCutoff: 0.03
+    - _DisplayFirstNSplats: 0
     - _DistanceScale: 0.33
     - _Exposure: 1
     - _GaussianScale: 1.2
