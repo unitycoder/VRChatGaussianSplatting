@@ -22,7 +22,6 @@ Shader "VRChatGaussianSplatting/ComputeKeyValue" {
 
             float4x4 _SplatToWorld;
             float3 _CameraPos;
-            float2 _MinMaxSortDistance;
 
             uint float2fixed16(float v) {
                 return round(clamp(v, 0.0, 1.0) * 65535.0);

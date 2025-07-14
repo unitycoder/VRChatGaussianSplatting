@@ -1664,9 +1664,9 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 678304623}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.6740667, y: 0.17047213, z: -0.16846046, w: 0.69870913}
-  m_LocalPosition: {x: 0.2639992, y: 0.3280037, z: 1.0649998}
-  m_LocalScale: {x: -2.1865993, y: 2.1865993, z: 2.1865993}
+  m_LocalRotation: {x: 0.68668354, y: 0.1648182, z: -0.17279696, w: 0.68661624}
+  m_LocalPosition: {x: -0.2999999, y: 0.36999974, z: 2.4}
+  m_LocalScale: {x: -1.5426625, y: 1.5426625, z: 1.5426625}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 172832760}
@@ -3175,7 +3175,7 @@ MonoBehaviour:
   - {fileID: 1625786708}
   - {fileID: 365544146}
   minSortDistance: 0
-  maxSortDistance: 200
+  maxSortDistance: 300
   cameraPositionQuantization: 0.1
   alwaysUpdate: 0
   splatRenderOrder: {fileID: 8400000, guid: ce4f819f4c1e4fa42b86c002ebd738f6, type: 2}
@@ -3513,7 +3513,7 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3

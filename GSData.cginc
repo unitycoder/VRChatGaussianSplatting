@@ -17,6 +17,7 @@ float _Exposure;
 float _Opacity;
 float _ScaleCutoff;
 int _DisplayFirstNSplats;
+float2 _MinMaxSortDistance;
 
 struct SplatData {
     float3 mean;
@@ -24,6 +25,7 @@ struct SplatData {
     float4 quat;
     float4 color;
     uint id; // for debugging purposes
+    bool valid;
 };
 
 #define SH_C0 0.577350269189625764509148780501957455647601751270126

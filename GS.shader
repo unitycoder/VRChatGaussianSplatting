@@ -9,6 +9,7 @@ Shader "VRChatGaussianSplatting/GaussianSplatting"
         [HideInInspector] _GS_RenderOrder ("Rendering Orders", 2DArray) = "" {}
         [HideInInspector] _MirrorCameraPos ("Mirror Camera Position", Vector) = (0, 0, 0, 0)
         [HideInInspector] _HACK_UNIFORM ("hack", Float) = 1.0 // HACK to avoid compiler optimizing out double precision
+        [HideInInspector] _MinMaxSortDistance ("Min Max Distance", Vector) = (0, 0, 0, 0)
         //[HideInInspector] [Toggle] _EditorMode ("Editor Mode", Float) = 1.0
 
         _SplatScale ("Quad Scale", Range(0, 2)) = 0.75

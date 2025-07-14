@@ -60,7 +60,12 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
     if (splat.color.a < _AlphaCutoff) return; // skip splats with low alpha
     if (any(splat.scale > _ScaleCutoff)) return; // skip splats with too large scale
 
-    float4 splatClipPos = mul(UNITY_MATRIX_MVP, float4(splat.mean, 1));
+    float3 splatWorldPos = mul(unity_ObjectToWorld, float4(splat.mean, 1)).xyz;
+    float cameraDistance = length(splatWorldPos - _WorldSpaceCameraPos);
+    if (_MinMaxSortDistance.x != _MinMaxSortDistance.y  && (cameraDistance < _MinMaxSortDistance.x || cameraDistance > _MinMaxSortDistance.y)) {
+        return; // skip splats outside of the sorting distance range
+    }
+    float4 splatClipPos = mul(UNITY_MATRIX_VP, float4(splatWorldPos, 1));
     if (splatClipPos.w <= 0) return; // behind camera
     splatClipPos.xyz /= splatClipPos.w; // perspective divide
     if (all(splatClipPos.xy < -1.0) || all(splatClipPos.xy > 1.0)) return; // outside of view frustum
@@ -69,8 +74,7 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
     // All this clamping is required to avoid numerical instability of the ellipsoid projection
     float scale = _SplatScale * sqrt(2);//*sqrt( -log2(splat.color.a));
     float scale_max = max(splat.scale.x, max(splat.scale.y, splat.scale.z));
-    float distance = length(splat.mean - objCameraPos);
-    float3 clamped_scale = max(clamp(splat.scale, scale_max * _ThinThreshold, scale_max), distance * _DistanceScale * 0.8e-3);
+    float3 clamped_scale = max(clamp(splat.scale, scale_max * _ThinThreshold, scale_max), cameraDistance * _DistanceScale * 0.8e-3);
 
     // Project the ellipsoid onto the screen
     Ellipse ell = GetProjectedEllipsoid(splat.mean, scale * 2.0 * clamped_scale, splat.quat);
@@ -105,7 +109,7 @@ float4 frag(g2f input) : SV_Target {
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
     float2 steps = smoothstep(1.0, 0.9, abs(input.splat_pos.zw)); //make quad edges softer
     float rho = steps.x * steps.y * input.color.a * exp(-dot(input.splat_pos,input.splat_pos));
-    if (rho < 0.01) discard;  // skip regions with low density
+    if (rho < 0.001) discard;  // skip regions with low density
     bool validOrder = _GS_RenderOrder_TexelSize.z >= _GS_Positions_TexelSize.z;
     if(!validOrder) return float4(0.5 * input.color.rgb * rho, 0.0);
     return float4(input.color.rgb * rho, rho);

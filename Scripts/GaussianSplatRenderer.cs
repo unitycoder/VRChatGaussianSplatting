@@ -126,7 +126,9 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
         _radixSort.elementCount = positions.width * positions.height;
         keyValueMat = _radixSort.computeKeyValues;
         keyValueMat.SetTexture("_GS_Positions", positions);
-        keyValueMat.SetVector("_MinMaxSortDistance", new Vector4(minSortDistance, maxSortDistance, 0, 0));
+        Vector4 minMaxSortDistance = new Vector4(minSortDistance, maxSortDistance, 0, 0);
+        keyValueMat.SetVector("_MinMaxSortDistance", minMaxSortDistance);
+        splatMat.SetVector("_MinMaxSortDistance", minMaxSortDistance);
         keyValueMat.SetMatrix("_SplatToWorld", splatObject.transform.localToWorldMatrix);
     }
 
