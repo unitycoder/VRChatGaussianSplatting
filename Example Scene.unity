@@ -3175,7 +3175,7 @@ MonoBehaviour:
   - {fileID: 1625786708}
   - {fileID: 365544146}
   minSortDistance: 0
-  maxSortDistance: 300
+  maxSortDistance: 350
   cameraPositionQuantization: 0.1
   alwaysUpdate: 0
   splatRenderOrder: {fileID: 8400000, guid: ce4f819f4c1e4fa42b86c002ebd738f6, type: 2}

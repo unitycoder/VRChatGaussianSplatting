@@ -24,6 +24,9 @@ Shader "VRChatGaussianSplatting/ComputeKeyValue" {
             float3 _CameraPos;
 
             uint float2fixed16(float v) {
+                if(isnan(v) || isinf(v)) {
+                    return 0xFFFFFFFF; // Return max value for NaN or Inf
+                }
                 return round(clamp(v, 0.0, 1.0) * 65535.0);
             }
 

@@ -156,17 +156,17 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
         VRCCameraSettings photoCam = VRCCameraSettings.PhotoCamera;
         if (photoCam != null && photoCam.Active) SortCamera(photoCam.Position, 1);
         
-        if (mirror != null && mirror.activeInHierarchy)
-        {
-            Vector3 mirrorZ = mirror.transform.forward;
-            float zDist = Vector3.Dot(mirrorZ, mirror.transform.position - screenCamPos);
-            if (zDist > 0)
-            {
-                Vector3 mirrorCamPos = screenCamPos + 2 * zDist * mirrorZ;
-                _meshRenderer.material.SetVector("_MirrorCameraPos", mirrorCamPos);
-                SortCamera(mirrorCamPos, 2, true);
-            }
-        }
+        // if (mirror != null && mirror.activeInHierarchy) //Mirror order is currently broken in VRChat
+        // {
+        //     Vector3 mirrorZ = mirror.transform.forward;
+        //     float zDist = Vector3.Dot(mirrorZ, mirror.transform.position - screenCamPos);
+        //     if (zDist > 0)
+        //     {
+        //         Vector3 mirrorCamPos = screenCamPos + 2 * zDist * mirrorZ;
+        //         _meshRenderer.material.SetVector("_MirrorCameraPos", mirrorCamPos);
+        //         SortCamera(mirrorCamPos, 2, true);
+        //     }
+        // }
     }
 
     void Update()

@@ -57,6 +57,7 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
 
     float3 objCameraPos = mul(unity_WorldToObject, float4(_WorldSpaceCameraPos, 1)).xyz;
     SplatData splat = LoadSplatDataRenderOrder(id, objCameraPos);
+    if (!splat.valid) return; // skip invalid splats
     if (splat.color.a < _AlphaCutoff) return; // skip splats with low alpha
     if (any(splat.scale > _ScaleCutoff)) return; // skip splats with too large scale
 
@@ -83,9 +84,9 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
         return;
     }
 
-    float minDist = _AntiAliasing / min(_ScreenParams.x, _ScreenParams.y);
+    float2 pixSize = 1.75 * _AntiAliasing / _ScreenParams;
     float area = ell.size.x * ell.size.y;
-    ell.size = max(ell.size, minDist); // ensure minimum size
+    ell.size = max(ell.size, pixSize); // ensure minimum size
     float areaPost = ell.size.x * ell.size.y;
     float areaScale = area / areaPost;
     o.color.a *= areaScale; // scale alpha by area ratio

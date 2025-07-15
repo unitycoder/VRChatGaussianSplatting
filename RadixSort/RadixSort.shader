@@ -23,7 +23,7 @@ Shader "Misha/RadixSort"
             CGPROGRAM
             #pragma vertex   vert
             #pragma fragment frag
-            #pragma enable_d3d11_debug_symbols
+            //#pragma enable_d3d11_debug_symbols
             #include "RadixSort.cginc"
 
             // Count number of given digits in the key values.
@@ -64,14 +64,14 @@ Shader "Misha/RadixSort"
             CGPROGRAM
             #pragma vertex   vert
             #pragma fragment frag
-            #pragma enable_d3d11_debug_symbols
+            //#pragma enable_d3d11_debug_symbols
             #include "RadixSort.cginc"
             
             // Do binary search for the key value at the given sorted index.
             float2 frag (v2f i) : SV_Target {
                 uint2 pixel = floor(i.pos.xy);
                 uint index = UVToIndex(pixel);
-                if(index >= _ElementCount) discard;
+                if(index >= _ElementCount) return float2(1e10, 1e10); // Return a large value if index is out of bounds
 
                 // Do binary search for the key value in the prefix sum by summing/going over the mips 
                 uint _ImageSize = _KeyValues_TexelSize.z;
