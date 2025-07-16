@@ -48,7 +48,7 @@ namespace GaussianSplatting
         /// Reads <paramref name="plyFile"/> and creates textures that are optionally saved to
         /// <paramref name="outputFolder"/> (editor only). Returns the in‑memory textures either way.
         /// </summary>
-        public static Output Import(string plyFile, string outputFolder = null)
+        public static Output Import(string plyFile, string outputMaterialPath)
         {
             if (!File.Exists(plyFile))
                 throw new FileNotFoundException(plyFile);
@@ -125,26 +125,22 @@ namespace GaussianSplatting
                 rotTex.Apply(false, true);
                 scaleTex.Apply(false, true);
 
-                if (!string.IsNullOrEmpty(outputFolder))
-                {
-                    Directory.CreateDirectory(outputFolder);
-                    SaveTextureAsset(xyzTex,     outputFolder, "xyz");
-                    SaveTextureAsset(colDcTex,   outputFolder, "color_dc");
-                    SaveTextureAsset(rotTex,     outputFolder, "rotation");
-                    SaveTextureAsset(scaleTex,   outputFolder, "scale");
-                    
-                    splatMat.name = "GaussianSplatMaterial";
-                    splatMat.SetTexture("_GS_Positions", xyzTex);
-                    splatMat.SetTexture("_GS_Colors", colDcTex);
-                    splatMat.SetTexture("_GS_Rotations", rotTex);
-                    splatMat.SetTexture("_GS_Scales", scaleTex);
+                // Get output folder from the material path
+                string outputFolder = Path.GetDirectoryName(outputMaterialPath);
+                // Get name of the material from the path
+                string materialName = Path.GetFileNameWithoutExtension(outputMaterialPath);
 
-                    string matPath = Path.Combine(outputFolder, "GaussianSplatMaterial.mat");
-                    matPath = AssetDatabase.GenerateUniqueAssetPath(matPath);
-                    AssetDatabase.CreateAsset(splatMat, matPath);
-                    AssetDatabase.SaveAssets();
-                }
-
+                SaveTextureAsset(xyzTex, outputFolder, materialName + "_xyz");
+                SaveTextureAsset(colDcTex, outputFolder, materialName + "_color_dc");
+                SaveTextureAsset(rotTex, outputFolder, materialName + "_rotation");
+                SaveTextureAsset(scaleTex, outputFolder, materialName + "_scale");
+                splatMat.name = materialName;
+                splatMat.SetTexture("_GS_Positions", xyzTex);
+                splatMat.SetTexture("_GS_Colors", colDcTex);
+                splatMat.SetTexture("_GS_Rotations", rotTex);
+                splatMat.SetTexture("_GS_Scales", scaleTex);
+                AssetDatabase.CreateAsset(splatMat, outputMaterialPath);
+                AssetDatabase.SaveAssets();
 
                 return new Output
                 {
@@ -174,9 +170,9 @@ namespace GaussianSplatting
             return tex;
         }
 
-        static void SaveTextureAsset(Texture2D tex, string folder, string suffix)
+        static void SaveTextureAsset(Texture2D tex, string folder, string name)
         {
-            string path = Path.Combine(folder, $"{tex.name}_{suffix}.asset");
+            string path = Path.Combine(folder, $"{name}.asset");
             path = AssetDatabase.GenerateUniqueAssetPath(path);
             AssetDatabase.CreateAsset(tex, path);
         }
@@ -195,13 +191,13 @@ namespace GaussianSplatting.Editor.Importers
     public class PlyImportWizard : EditorWindow
     {
         string _plyPath;
-        string _outputFolder = "Assets";
+        string _outputMatPath;
 
         [MenuItem("Gaussian Splatting/Import PLY Splat…")]
-        static void ShowWindow()
+        static void Init()
         {
-            var win = GetWindow<PlyImportWizard>(utility: true, title: "PLY Splat Importer");
-            win.minSize = new Vector2(460, 140);
+            PlyImportWizard window = (PlyImportWizard)EditorWindow.GetWindow(typeof(PlyImportWizard));
+            window.Show();
         }
 
         void OnGUI()
@@ -209,16 +205,13 @@ namespace GaussianSplatting.Editor.Importers
             EditorGUILayout.LabelField("PLY file", EditorStyles.boldLabel);
             DrawPathField(ref _plyPath, "ply");
 
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Output folder", EditorStyles.boldLabel);
-            DrawFolderField(ref _outputFolder);
-
             GUILayout.FlexibleSpace();
 
-            using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(_plyPath)))
+            if (GUILayout.Button("Import Gaussian Splat"))
             {
-                if (GUILayout.Button("Import", GUILayout.Height(30)))
-                    Import();
+                //query user for output material path
+                _outputMatPath = EditorUtility.SaveFilePanelInProject("Save Gaussian Splat", "GaussianSplat.mat", "mat", "Save Gaussian Splat", "Assets");
+                Import();
             }
         }
 
@@ -231,21 +224,12 @@ namespace GaussianSplatting.Editor.Importers
             EditorGUILayout.EndHorizontal();
         }
 
-        static void DrawFolderField(ref string folder)
-        {
-            EditorGUILayout.BeginHorizontal();
-            folder = EditorGUILayout.TextField(folder);
-            if (GUILayout.Button("…", GUILayout.Width(30)))
-                folder = EditorUtility.OpenFolderPanel("Select folder", folder, string.Empty);
-            EditorGUILayout.EndHorizontal();
-        }
-
         void Import()
         {
             try
             {
                 EditorUtility.DisplayProgressBar("PLY Import", "Reading and packing splats…", 0f);
-                PlySplatImporter.Import(_plyPath, _outputFolder);
+                PlySplatImporter.Import(_plyPath, _outputMatPath);
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
                 EditorUtility.DisplayDialog("PLY Import", "Import completed successfully.", "OK");

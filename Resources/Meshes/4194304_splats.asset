@@ -6,7 +6,7 @@ Mesh:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: points_131072
+  m_Name: 4194304_splats
   serializedVersion: 11
   m_SubMeshes:
   - serializedVersion: 2
