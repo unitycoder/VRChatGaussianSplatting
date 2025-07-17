@@ -22,7 +22,7 @@ struct v2g {
 
 struct g2f {
     float4 position: SV_POSITION;
-    float2 splat_pos: TEXCOORD0;
+    float2 quadPos: TEXCOORD0;
     nointerpolation float4 color: TEXCOORD1;
     UNITY_VERTEX_OUTPUT_STEREO
 };
@@ -80,9 +80,8 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
         return;
     }
 
-    float2 pixSize = 1.75 * _AntiAliasing / _ScreenParams;
     float area = ell.size.x * ell.size.y;
-    ell.size = max(ell.size, pixSize); // ensure minimum size
+    ell.size = max(ell.size * _ScreenParams, 1.75 * _AntiAliasing) / _ScreenParams; // ensure minimum size
     float areaPost = ell.size.x * ell.size.y;
     float areaScale = area / areaPost;
     o.color.a *= areaScale; // scale alpha by area ratio
@@ -95,18 +94,17 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
 
     [unroll] for (uint vtxID = 0; vtxID < 4; vtxID ++)
     {
-        float2 quadPos =  (float2(vtxID & 1, (vtxID >> 1) & 1) * 2.0 - 1.0);
+        o.quadPos = float2(vtxID & 1, (vtxID >> 1) & 1) * 2.0 - 1.0;
         float2x2 rot = float2x2(ell.axis.x, -ell.axis.y, ell.axis.y, ell.axis.x);
-        float2 ndc = ell.center + mul(rot, quadScale * quadPos * ell.size);
+        float2 ndc = ell.center + mul(rot, quadScale * o.quadPos * ell.size);
         o.position = float4(ndc, splatClipPos.z, 1.0);
-        o.splat_pos = float2(quadPos);
         triStream.Append(o);
     }
 }
 
 float4 frag(g2f input) : SV_Target {
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-    float dist2 = dot(input.splat_pos, input.splat_pos);
+    float dist2 = dot(input.quadPos, input.quadPos);
     float rho0 = exp(- 2.0 * dist2 * _GaussianMul * (_QuadScale * _QuadScale));
     float rho1 = smoothstep(1.02, 0.98, dist2);
     float rho = input.color.a * rho1 * rho0;
