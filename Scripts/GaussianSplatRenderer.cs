@@ -84,6 +84,16 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
         splatObject.SetActive(true); // Activate the new splat object
     }
 
+    public GameObject GetObjectByIndex(int index)
+    {
+        if (index < 0 || index >= splatObjects.Length)
+        {
+            Debug.LogError($"Invalid splat object index: {index}. Must be between 0 and {splatObjects.Length - 1}.");
+            return null;
+        }
+        return splatObjects[index];
+    }
+
     void Start()
     {
         VRCCameraSettings.ScreenCamera.AllowMSAA = false; // MSAA is too slow for Gaussian Splatting, disable it
@@ -122,6 +132,7 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
         _meshRenderer = splatObject.GetComponent<MeshRenderer>();
         Material splatMat = _meshRenderer.material;
         splatMat.SetTexture("_GS_RenderOrder", splatRenderOrder);
+        splatMat.SetFloat("_EDITOR_MODE", 0.0f); // Disable editor mode for runtime
         Texture positions = splatMat.GetTexture("_GS_Positions");
         _radixSort.elementCount = positions.width * positions.height;
         keyValueMat = _radixSort.computeKeyValues;

@@ -11,10 +11,9 @@ Shader "VRChatGaussianSplatting/GaussianSplatting"
         [HideInInspector] _MirrorCameraPos ("Mirror Camera Position", Vector) = (0, 0, 0, 0)
         [HideInInspector] _HACK_UNIFORM ("hack", Float) = 1.0 // HACK to avoid compiler optimizing out double precision
         [HideInInspector] _MinMaxSortDistance ("Min Max Distance", Vector) = (0, 0, 0, 0)
-        //[HideInInspector] [Toggle] _EditorMode ("Editor Mode", Float) = 1.0
 
-        _SplatScale ("Quad Scale", Range(0, 2)) = 0.75
-        _GaussianScale ("Gaussian Scale", Range(0, 2)) = 1.2
+        _QuadScale ("Quad Scale", Range(0, 2)) = 1.1
+        _GaussianMul ("Gaussian Scale", Range(0, 2)) = 1.0
         _ThinThreshold ("Thinness Threshold", Range(0, 1)) = 0.005
         _AntiAliasing ("Antialiasing", Range(0, 5.0)) = 1.0
         _Log2MinScale ("Log2 of Minimum Scale", Range(-20, 10)) = -12.0
@@ -22,7 +21,7 @@ Shader "VRChatGaussianSplatting/GaussianSplatting"
         _ScaleCutoff ("Scale Cutoff", Range(0, 100)) = 100.0
         _Exposure ("Exposure", Range(0, 5)) = 1.0
         _Opacity ("Opacity", Range(0, 5)) = 1.0
-        _DisplayFirstNSplats ("Display First N Splats", Int) = 0
+        _DisplayFirstNSplats ("Display First N Splats", Range(0, 8388607)) = 0 
     }
     SubShader
     {

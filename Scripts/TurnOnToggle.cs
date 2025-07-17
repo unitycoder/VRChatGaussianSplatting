@@ -15,6 +15,8 @@ public class TurnOnToggle : UdonSharpBehaviour
 
     public override void Interact()
     {
+        Networking.SetOwner(Networking.LocalPlayer, gameObject);
+        Networking.SetOwner(Networking.LocalPlayer, gaussianSplatRenderer.gameObject);
         gaussianSplatRenderer.SetSplatObjectIndex(enableObjectIndex);
     }
 }

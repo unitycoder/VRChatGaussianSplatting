@@ -9,6 +9,19 @@ using GaussianSplatting.Editor.Utils;
 
 namespace GaussianSplatting
 {
+    static public class PointsMesh
+    {
+        static public Mesh GetMesh(int splat_count)
+        {
+            int vertices = (splat_count + 31) / 32; // geometry shader will emit 32 quads per point, so we need at least 1 vertex per 32 splats
+            Mesh mesh = new Mesh();
+            mesh.vertices = new Vector3[1];
+            mesh.bounds = new Bounds(new Vector3(0, 0, 0), new Vector3(1000, 1000, 1000));
+            mesh.SetIndices(new int[vertices], MeshTopology.Points, 0, false, 0);
+            return mesh;
+        }
+    }
+
     /// <summary>
     /// Parses a Gaussian‑splat *.ply (or .spz) file and packs the attributes into five square
     /// textures ready for GPU upload. Only UnityEngine types are referenced so this class can
@@ -42,13 +55,29 @@ namespace GaussianSplatting
             public Texture2D rotation;
             public Texture2D scale;
             public Material splatMaterial;
+            public Mesh pointMesh;
+            public GameObject prefab;
+        }
+
+        public static GameObject CreatePrefab(Material mat, Mesh mesh, string assetPath, string name)
+        {
+            var go = new GameObject(name);
+            go.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            go.transform.localScale = new Vector3(1, -1, 1); // flip X to match the splat coordinate system
+
+            go.AddComponent<MeshFilter>().sharedMesh   = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = mat;
+
+            var prefab = PrefabUtility.SaveAsPrefabAssetAndConnect(go, assetPath, InteractionMode.AutomatedAction);
+            GameObject.DestroyImmediate(go); // clean up the temporary GameObject
+            return prefab;
         }
 
         /// <summary>
         /// Reads <paramref name="plyFile"/> and creates textures that are optionally saved to
         /// <paramref name="outputFolder"/> (editor only). Returns the in‑memory textures either way.
         /// </summary>
-        public static Output Import(string plyFile, string outputMaterialPath)
+        public static Output Import(string plyFile, string prefabOutputPath)
         {
             if (!File.Exists(plyFile))
                 throw new FileNotFoundException(plyFile);
@@ -61,6 +90,8 @@ namespace GaussianSplatting
             GaussianFileReader.ReadFile(plyFile, out NativeArray<InputSplatData> splats);
             try
             {
+ 
+
                 int side = Mathf.CeilToInt(Mathf.Sqrt(count));
 
                 Debug.Log($"Importing {count} splats into {side}x{side} textures");
@@ -125,21 +156,27 @@ namespace GaussianSplatting
                 rotTex.Apply(false, true);
                 scaleTex.Apply(false, true);
 
-                // Get output folder from the material path
-                string outputFolder = Path.GetDirectoryName(outputMaterialPath);
                 // Get name of the material from the path
-                string materialName = Path.GetFileNameWithoutExtension(outputMaterialPath);
+                string materialName = Path.GetFileNameWithoutExtension(prefabOutputPath);
+                string outputDataFolder = Path.GetDirectoryName(prefabOutputPath) + "/" + materialName; 
 
-                SaveTextureAsset(xyzTex, outputFolder, materialName + "_xyz");
-                SaveTextureAsset(colDcTex, outputFolder, materialName + "_color_dc");
-                SaveTextureAsset(rotTex, outputFolder, materialName + "_rotation");
-                SaveTextureAsset(scaleTex, outputFolder, materialName + "_scale");
+                // Create output data folder if it doesn't exist
+                Directory.CreateDirectory(outputDataFolder);
+
+                SaveTextureAsset(xyzTex, outputDataFolder, materialName + "_xyz");
+                SaveTextureAsset(colDcTex, outputDataFolder, materialName + "_color_dc");
+                SaveTextureAsset(rotTex, outputDataFolder, materialName + "_rotation");
+                SaveTextureAsset(scaleTex, outputDataFolder, materialName + "_scale");
                 splatMat.name = materialName;
                 splatMat.SetTexture("_GS_Positions", xyzTex);
                 splatMat.SetTexture("_GS_Colors", colDcTex);
                 splatMat.SetTexture("_GS_Rotations", rotTex);
                 splatMat.SetTexture("_GS_Scales", scaleTex);
-                AssetDatabase.CreateAsset(splatMat, outputMaterialPath);
+                AssetDatabase.CreateAsset(splatMat, Path.Combine(outputDataFolder, materialName + ".mat"));
+                Mesh pointMesh = PointsMesh.GetMesh(count);
+                AssetDatabase.CreateAsset(pointMesh, Path.Combine(outputDataFolder, materialName + "_mesh.asset"));
+                // Create prefab with the splat material and mesh
+                GameObject prefab = CreatePrefab(splatMat, pointMesh, prefabOutputPath, materialName);
                 AssetDatabase.SaveAssets();
 
                 return new Output
@@ -148,7 +185,9 @@ namespace GaussianSplatting
                     colorDc  = colDcTex,
                     rotation = rotTex,
                     scale    = scaleTex,
-                    splatMaterial = splatMat
+                    splatMaterial = splatMat,
+                    pointMesh = pointMesh,
+                    prefab   = prefab
                 };
             }
             finally
@@ -191,7 +230,7 @@ namespace GaussianSplatting.Editor.Importers
     public class PlyImportWizard : EditorWindow
     {
         string _plyPath;
-        string _outputMatPath;
+        string _outputMatPath = "Assets";
 
         [MenuItem("Gaussian Splatting/Import PLY Splat…")]
         static void Init()
@@ -204,14 +243,20 @@ namespace GaussianSplatting.Editor.Importers
         {
             EditorGUILayout.LabelField("PLY file", EditorStyles.boldLabel);
             DrawPathField(ref _plyPath, "ply");
-
+            EditorGUILayout.LabelField("Output Path", EditorStyles.boldLabel);
+            _outputMatPath = EditorGUILayout.TextField(_outputMatPath);
             GUILayout.FlexibleSpace();
 
             if (GUILayout.Button("Import Gaussian Splat"))
             {
                 //query user for output material path
-                _outputMatPath = EditorUtility.SaveFilePanelInProject("Save Gaussian Splat", "GaussianSplat.mat", "mat", "Save Gaussian Splat", "Assets");
-                Import();
+                string plyName = Path.GetFileNameWithoutExtension(_plyPath);
+                
+                string outputPath = EditorUtility.SaveFilePanelInProject("Save Gaussian Splat", plyName + ".prefab", "prefab", "Save Gaussian Splat", _outputMatPath);
+                if (string.IsNullOrEmpty(outputPath))
+                    return; // user cancelled
+                _outputMatPath = Path.GetDirectoryName(outputPath);
+                Import(outputPath);
             }
         }
 
@@ -224,12 +269,12 @@ namespace GaussianSplatting.Editor.Importers
             EditorGUILayout.EndHorizontal();
         }
 
-        void Import()
+        void Import(string path)
         {
             try
             {
                 EditorUtility.DisplayProgressBar("PLY Import", "Reading and packing splats…", 0f);
-                PlySplatImporter.Import(_plyPath, _outputMatPath);
+                PlySplatImporter.Import(_plyPath, path);
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
                 EditorUtility.DisplayDialog("PLY Import", "Import completed successfully.", "OK");

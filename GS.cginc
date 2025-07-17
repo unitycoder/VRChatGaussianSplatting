@@ -1,6 +1,5 @@
 #define UNITY_SHADER_NO_UPGRADE 1 
 #pragma target 5.0
-//#pragma shader_feature_local _EditorMode
 #pragma exclude_renderers gles
 #pragma vertex vert
 #pragma fragment frag
@@ -9,8 +8,6 @@
 #include "UnityCG.cginc"
 #include "GSData.cginc"
 #include "GSMath.cginc"
-
-float _EditorMode; // 1 if in editor mode, 0 otherwise
 
 struct appdata {
     float4 position : POSITION;
@@ -25,7 +22,7 @@ struct v2g {
 
 struct g2f {
     float4 position: SV_POSITION;
-    float4 splat_pos: TEXCOORD0;
+    float2 splat_pos: TEXCOORD0;
     nointerpolation float4 color: TEXCOORD1;
     UNITY_VERTEX_OUTPUT_STEREO
 };
@@ -73,12 +70,11 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
 
     o.color = splat.color;
     // All this clamping is required to avoid numerical instability of the ellipsoid projection
-    float scale = _SplatScale * sqrt(2);//*sqrt( -log2(splat.color.a));
     float scale_max = max(splat.scale.x, max(splat.scale.y, splat.scale.z));
     float3 clamped_scale = clamp(splat.scale, scale_max * _ThinThreshold, scale_max);
 
     // Project the ellipsoid onto the screen
-    Ellipse ell = GetProjectedEllipsoid(splat.mean, scale * 2.0 * clamped_scale, splat.quat);
+    Ellipse ell = GetProjectedEllipsoid(splat.mean, 2.0 * clamped_scale, splat.quat);
 
     if(any(ell.size > 1.75)) {
         return;
@@ -95,23 +91,27 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
         return; // skip splats with too small area or invalid alpha
     }
 
+    float quadScale = _QuadScale;
+
     [unroll] for (uint vtxID = 0; vtxID < 4; vtxID ++)
     {
-        float2 quadPos = (float2(vtxID & 1, (vtxID >> 1) & 1) * 2.0 - 1.0);
+        float2 quadPos =  (float2(vtxID & 1, (vtxID >> 1) & 1) * 2.0 - 1.0);
         float2x2 rot = float2x2(ell.axis.x, -ell.axis.y, ell.axis.y, ell.axis.x);
-        float2 ndc = ell.center + mul(rot, quadPos * ell.size);
+        float2 ndc = ell.center + mul(rot, quadScale * quadPos * ell.size);
         o.position = float4(ndc, splatClipPos.z, 1.0);
-        o.splat_pos = float4(scale * quadPos / _GaussianScale, quadPos);
+        o.splat_pos = float2(quadPos);
         triStream.Append(o);
     }
 }
 
 float4 frag(g2f input) : SV_Target {
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-    float2 steps = smoothstep(1.0, 0.85, abs(input.splat_pos.zw)); //make quad edges softer
-    float rho = steps.x * steps.y * input.color.a * exp(-dot(input.splat_pos,input.splat_pos));
+    float dist2 = dot(input.splat_pos, input.splat_pos);
+    float rho0 = exp(- 2.0 * dist2 * _GaussianMul * (_QuadScale * _QuadScale));
+    float rho1 = smoothstep(1.02, 0.98, dist2);
+    float rho = input.color.a * rho1 * rho0;
     if (rho < 0.01) discard;  // skip regions with low density
     bool validOrder = _GS_RenderOrder_TexelSize.z >= _GS_Positions_TexelSize.z;
-    if(!validOrder) return float4(0.5 * input.color.rgb * rho, 0.0);
+    if(!validOrder) return 0.5 * float4(input.color.rgb * rho, rho);
     return float4(input.color.rgb * rho, rho);
 }

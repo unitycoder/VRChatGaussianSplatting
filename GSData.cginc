@@ -8,8 +8,8 @@ float4 _GS_RenderOrder_TexelSize;
 float _VRChatCameraMode;
 float _VRChatMirrorMode;
 float3 _MirrorCameraPos, _VRChatMirrorCameraPos;
-float _SplatScale;
-float _GaussianScale;
+float _QuadScale;
+float _GaussianMul;
 float _ThinThreshold;
 float _AntiAliasing;
 float _Log2MinScale;
@@ -58,15 +58,12 @@ SplatData LoadSplatDataRenderOrder(uint id, float3 camPos) {
             uint slice = (_VRChatCameraMode > 0);
             reordered_id = _GS_RenderOrder[uint3(coord1, slice)];
         }
+    } else {
+        uint splatCount = uint(_GS_Positions_TexelSize.z) * uint(_GS_Positions_TexelSize.w);
+        reordered_id = pcg(reordered_id) % splatCount; // randomize order for alpha blending to somewhat work
     }
     SplatData data = LoadSplatData(reordered_id);
     data.id = reordered_id; // store the original ID for debugging purposes
     data.valid = valid;
-    if(!validOrder)
-    {
-        float dist = length(data.mean - camPos);
-        data.color.xyz *= 0.25;
-       // data.scale = 0.0005 * dist;
-    }
     return data;
 }
