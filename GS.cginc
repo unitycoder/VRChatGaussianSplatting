@@ -39,37 +39,34 @@ v2g vert(appdata v) {
 [maxvertexcount(4)]
 [instance(32)]
 void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceID : SV_GSInstanceID, uint geoPrimID : SV_PrimitiveID) {
-    uint splatCount = uint(_GS_Positions_TexelSize.z) * uint(_GS_Positions_TexelSize.w);
     uint id = geoPrimID * 32 + instanceID;
 
-    if (id >= splatCount || (id >= _DisplayFirstNSplats && _DisplayFirstNSplats > 0)) {
-        return; // skip if out of bounds or beyond the display limit
-    }
+    if (id >= _SplatCount)  return;
 
+    id += _SplatOffset; // offset for the current batch
+    
     g2f o;
     UNITY_SETUP_INSTANCE_ID(input[0]);
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input[0]);
     UNITY_INITIALIZE_OUTPUT(g2f, o);
     UNITY_TRANSFER_VERTEX_OUTPUT_STEREO(input[0], o);
 
-    float3 objCameraPos = mul(unity_WorldToObject, float4(_WorldSpaceCameraPos, 1)).xyz;
-    SplatData splat = LoadSplatDataRenderOrder(id, objCameraPos);
-    if (!splat.valid) return; // skip invalid splats
-    if (splat.color.a < _AlphaCutoff) return; // skip splats with low alpha
-    if (any(splat.scale > _ScaleCutoff)) return; // skip splats with too large scale
+    SplatData splat = LoadSplatDataRenderOrder(id);
+
+    if (!splat.valid || (splat.color.a < _AlphaCutoff) || any(splat.scale > _ScaleCutoff)) return; 
 
     float3 splatWorldPos = mul(unity_ObjectToWorld, float4(splat.mean, 1)).xyz;
     float cameraDistance = length(splatWorldPos - _WorldSpaceCameraPos);
     if (_MinMaxSortDistance.x != _MinMaxSortDistance.y  && (cameraDistance < _MinMaxSortDistance.x || cameraDistance > _MinMaxSortDistance.y)) {
         return; // skip splats outside of the sorting distance range
     }
+
     float4 splatClipPos = mul(UNITY_MATRIX_VP, float4(splatWorldPos, 1));
     if (splatClipPos.w <= 0) return; // behind camera
     splatClipPos.xyz /= splatClipPos.w; // perspective divide
     if (all(splatClipPos.xy < -1.0) || all(splatClipPos.xy > 1.0)) return; // outside of view frustum
 
     o.color = splat.color;
-    // All this clamping is required to avoid numerical instability of the ellipsoid projection
     float scale_max = max(splat.scale.x, max(splat.scale.y, splat.scale.z));
     float3 clamped_scale = clamp(splat.scale, scale_max * _ThinThreshold, scale_max);
 
@@ -90,26 +87,31 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
         return; // skip splats with too small area or invalid alpha
     }
 
-    float quadScale = _QuadScale;
-
     [unroll] for (uint vtxID = 0; vtxID < 4; vtxID ++)
     {
         o.quadPos = float2(vtxID & 1, (vtxID >> 1) & 1) * 2.0 - 1.0;
         float2x2 rot = float2x2(ell.axis.x, -ell.axis.y, ell.axis.y, ell.axis.x);
-        float2 ndc = ell.center + mul(rot, quadScale * o.quadPos * ell.size);
+        float2 ndc = ell.center + mul(rot, _QuadScale * o.quadPos * ell.size);
         o.position = float4(ndc, splatClipPos.z, 1.0);
         triStream.Append(o);
     }
 }
 
+#define SMOOTHSTEP_0 0.98
+#define SMOOTHSTEP_1 1.02
+
+//#define DEBUG_OUTLINES
+
 float4 frag(g2f input) : SV_Target {
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
     float dist2 = dot(input.quadPos, input.quadPos);
+#ifdef DEBUG_OUTLINES
+    return (dist2 < 1.0) ? float4(1, 0, 0, 1) : float4(0, 0, 0, 1); // red outline for debugging
+#endif
+    if (dist2 > SMOOTHSTEP_1) discard;  // skip outside of the ellipse
     float rho0 = exp(- 2.0 * dist2 * _GaussianMul * (_QuadScale * _QuadScale));
-    float rho1 = smoothstep(1.02, 0.98, dist2);
+    float rho1 = smoothstep(SMOOTHSTEP_1, SMOOTHSTEP_0, dist2);
     float rho = input.color.a * rho1 * rho0;
     if (rho < 0.01) discard;  // skip regions with low density
-    bool validOrder = _GS_RenderOrder_TexelSize.z >= _GS_Positions_TexelSize.z;
-    if(!validOrder) return 0.5 * float4(input.color.rgb * rho, rho);
     return float4(input.color.rgb * rho, rho);
 }

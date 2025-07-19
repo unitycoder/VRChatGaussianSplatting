@@ -2,7 +2,7 @@ Shader "VRChatGaussianSplatting/ToLinear"
 {
     SubShader
     {
-        Tags { "Queue" = "Transparent+501" }
+        Tags { "Queue" = "Transparent+600" }
         
         GrabPass
         {

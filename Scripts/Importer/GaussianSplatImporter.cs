@@ -1,23 +1,47 @@
 
 #if UNITY_EDITOR && !COMPILER_UDONSHARP
 using System;
+using Unity.Collections;  
+using System.Collections.Generic;
 using System.IO;
-using Unity.Collections;
-using UnityEngine;
+using System.Linq;
 using UnityEditor;
+using UnityEngine;
 using GaussianSplatting.Editor.Utils;
+using GaussianSplatting;
 
 namespace GaussianSplatting
 {
     static public class PointsMesh
     {
-        static public Mesh GetMesh(int splat_count)
+        static public Mesh GetMesh(int splat_count, Bounds bbox)
         {
             int vertices = (splat_count + 31) / 32; // geometry shader will emit 32 quads per point, so we need at least 1 vertex per 32 splats
             Mesh mesh = new Mesh();
             mesh.vertices = new Vector3[1];
-            mesh.bounds = new Bounds(new Vector3(0, 0, 0), new Vector3(1000, 1000, 1000));
+            mesh.bounds = bbox;
             mesh.SetIndices(new int[vertices], MeshTopology.Points, 0, false, 0);
+            return mesh;
+        }
+
+        public static Mesh GetMultiPassMesh(List<int> indexCounts, List<MeshTopology> topologies, Bounds bbox)
+        {
+            // Create mesh
+            var mesh = new Mesh();
+            mesh.vertices = new Vector3[3];
+            mesh.subMeshCount = indexCounts.Count;
+
+            // For each sub‑mesh, fill an index buffer with 0‑indices
+            for (int i = 0; i < indexCounts.Count; i++)
+            {
+                int[] indices = new int[indexCounts[i]];
+                indices[0] = 0;
+                indices[1] = 1; 
+                indices[2] = 2; 
+                mesh.SetIndices(indices, topologies[i], i, false, 0);
+            }
+            
+            mesh.bounds = bbox;
             return mesh;
         }
     }
@@ -48,36 +72,22 @@ namespace GaussianSplatting
             return Part1By2(x) | (Part1By2(y) << 1) | (Part1By2(z) << 2);
         }
 
-        public struct Output
-        {
-            public Texture2D xyz;
-            public Texture2D colorDc;
-            public Texture2D rotation;
-            public Texture2D scale;
-            public Material splatMaterial;
-            public Mesh pointMesh;
-            public GameObject prefab;
-        }
-
-        public static GameObject CreatePrefab(Material mat, Mesh mesh, string assetPath, string name)
+        public static GameObject CreatePrefab(List<Material> materials, Mesh mesh, string assetPath, string name)
         {
             var go = new GameObject(name);
             go.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
-            go.transform.localScale = new Vector3(1, -1, 1); // flip X to match the splat coordinate system
-
-            go.AddComponent<MeshFilter>().sharedMesh   = mesh;
-            go.AddComponent<MeshRenderer>().sharedMaterial = mat;
-
+            go.transform.localScale = new Vector3(1, -1, 1); // flip Y to match unity's coordinate system
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            MeshRenderer meshRenderer = go.AddComponent<MeshRenderer>();
+            meshRenderer.sharedMaterials = materials.ToArray();
+            meshRenderer.allowOcclusionWhenDynamic = false;
+            go.AddComponent<GaussianSplatObject>();
             var prefab = PrefabUtility.SaveAsPrefabAssetAndConnect(go, assetPath, InteractionMode.AutomatedAction);
             GameObject.DestroyImmediate(go); // clean up the temporary GameObject
             return prefab;
         }
 
-        /// <summary>
-        /// Reads <paramref name="plyFile"/> and creates textures that are optionally saved to
-        /// <paramref name="outputFolder"/> (editor only). Returns the in‑memory textures either way.
-        /// </summary>
-        public static Output Import(string plyFile, string prefabOutputPath)
+        public static void Import(string plyFile, string prefabOutputPath, bool computeBoundingBox, int splatsPerPass)
         {
             if (!File.Exists(plyFile))
                 throw new FileNotFoundException(plyFile);
@@ -90,9 +100,8 @@ namespace GaussianSplatting
             GaussianFileReader.ReadFile(plyFile, out NativeArray<InputSplatData> splats);
             try
             {
- 
-
                 int side = Mathf.CeilToInt(Mathf.Sqrt(count));
+                int effectiveCount = side * side; // round up to nearest square
 
                 Debug.Log($"Importing {count} splats into {side}x{side} textures");
 
@@ -108,27 +117,75 @@ namespace GaussianSplatting
                     max = Vector3.Max(max, data[i].pos);
                 }
                 Vector3 size = max - min;
+
                 if (size.x == 0) size.x = 1e-6f;
                 if (size.y == 0) size.y = 1e-6f;
                 if (size.z == 0) size.z = 1e-6f;
 
                 // Prepare Morton keys
                 var keys = new uint[n];
+                Vector3 centerOfMass = Vector3.zero;
+                int validCount = 0;
                 for (int i = 0; i < n; ++i)
                 {
-                    Vector3 np = (data[i].pos - min);
+                    Vector3 pos = data[i].pos;
+                    if (float.IsNaN(pos.x) || float.IsNaN(pos.y) || float.IsNaN(pos.z))
+                    {
+                        Debug.LogWarning($"Skipping splat {i} with NaN position: {pos}");
+                        continue; // skip invalid splats
+                    }
+                    centerOfMass += pos;
+                    ++validCount;
+                    Vector3 np = (pos - min);
                     np.x /= size.x; np.y /= size.y; np.z /= size.z;
                     keys[i] = Morton3D(np.x, np.y, np.z);
+                }
+
+                centerOfMass /= validCount; // compute center of mass
+
+                // Compute bounds relative to the center of mass
+                Vector3 maxSize = Vector3.zero;
+                for (int i = 0; i < n; ++i)
+                {
+                    Vector3 pos = data[i].pos;
+                    if (float.IsNaN(pos.x) || float.IsNaN(pos.y) || float.IsNaN(pos.z))
+                        continue; // skip invalid splats
+                    Vector3 relativePos = pos - centerOfMass;
+                    maxSize.x = Mathf.Max(maxSize.x, Mathf.Abs(relativePos.x));
+                    maxSize.y = Mathf.Max(maxSize.y, Mathf.Abs(relativePos.y));
+                    maxSize.z = Mathf.Max(maxSize.z, Mathf.Abs(relativePos.z));
                 }
 
                 // Sort splats by Morton key – in-place for data[]
                 Array.Sort(keys, data);
 
+                Bounds bbox = new Bounds();
+                if (computeBoundingBox)
+                {
+                    // Compute bounding box from splats
+                    bbox.center = centerOfMass;
+                    bbox.extents = new Vector3(maxSize.x, maxSize.y, maxSize.z);
+                    if (bbox.extents.x == 0 || bbox.extents.y == 0 || bbox.extents.z == 0)
+                    {
+                        // If the bounding box is zero-sized, set a default size
+                        bbox.extents = new Vector3(1000, 1000, 1000);
+                        Debug.LogWarning("Bounding box is zero-sized, using default size.");
+                    }
+                }
+                else
+                {
+                    // Use a default bounding box if not computing from splats
+                    bbox.center = Vector3.zero;
+                    bbox.extents = new Vector3(1000, 1000, 1000);
+                }
+
+
                 Texture2D xyzTex     = NewTexture(side, TextureFormat.RGBAFloat, "XYZ");
                 Texture2D colDcTex   = NewTexture(side, TextureFormat.RGBA32, "ColorDC");
                 Texture2D rotTex     = NewTexture(side, TextureFormat.RGBA32, "Rotation");
                 Texture2D scaleTex   = NewTexture(side, TextureFormat.RGB9e5Float, "Scale");
-                Material splatMat = new Material(Shader.Find("VRChatGaussianSplatting/GaussianSplatting"));
+                Shader shader = Shader.Find("VRChatGaussianSplatting/GaussianSplatting");
+              
 
                 var xyzPixels   = new Color[side * side];
                 var colPixels   = new Color[side * side];
@@ -166,29 +223,71 @@ namespace GaussianSplatting
                 SaveTextureAsset(xyzTex, outputDataFolder, materialName + "_xyz");
                 SaveTextureAsset(colDcTex, outputDataFolder, materialName + "_color_dc");
                 SaveTextureAsset(rotTex, outputDataFolder, materialName + "_rotation");
-                SaveTextureAsset(scaleTex, outputDataFolder, materialName + "_scale");
-                splatMat.name = materialName;
-                splatMat.SetTexture("_GS_Positions", xyzTex);
-                splatMat.SetTexture("_GS_Colors", colDcTex);
-                splatMat.SetTexture("_GS_Rotations", rotTex);
-                splatMat.SetTexture("_GS_Scales", scaleTex);
-                AssetDatabase.CreateAsset(splatMat, Path.Combine(outputDataFolder, materialName + ".mat"));
-                Mesh pointMesh = PointsMesh.GetMesh(count);
+                SaveTextureAsset(scaleTex, outputDataFolder, materialName + "_scale");  
+                
+                splatsPerPass = Mathf.Min(splatsPerPass, effectiveCount);
+     
+                List<Material> materials = new List<Material>();
+                List<int> indexCounts = new List<int>();
+                List<MeshTopology> topologies = new List<MeshTopology>();
+
+                //Convert screen colors to sRGB
+                indexCounts.Add(3);
+                topologies.Add(MeshTopology.Triangles); // main mesh will be rendered as triangles
+                materials.Add(new Material(Shader.Find("VRChatGaussianSplatting/ToSRGB")));
+
+                Material mainMat = null;
+                for (int i = 0; i < effectiveCount; i += splatsPerPass)
+                {
+                    int passCount = Mathf.Min(splatsPerPass, effectiveCount - i);
+                    int pass = i / splatsPerPass;
+                    Material splatMat = null;
+                    string splatMatName = materialName + (pass > 0 ? $"_pass_{pass}" : "_main") + "_splat";
+                    if(pass == 0) {
+                        splatMat = new Material(shader);
+                        splatMat.name = splatMatName;
+                        splatMat.SetTexture("_GS_Positions", xyzTex);
+                        splatMat.SetTexture("_GS_Colors", colDcTex);
+                        splatMat.SetTexture("_GS_Rotations", rotTex);
+                        splatMat.SetTexture("_GS_Scales", scaleTex);
+                        mainMat = splatMat;
+                    } else {
+                        splatMat = new Material(mainMat); // make a material variant
+                        splatMat.parent = mainMat;
+
+                        // Create alpha depth mask pass
+                        indexCounts.Add(3);
+                        topologies.Add(MeshTopology.Triangles); // alpha depth mask will be rendered as triangles
+                        Material alphaDepthMask = new Material(Shader.Find("VRChatGaussianSplatting/AlphaDepthMask"));
+                        alphaDepthMask.name = splatMatName + "_alpha_depth_mask";
+                        materials.Add(alphaDepthMask);
+                    }
+                    splatMat.name = splatMatName;
+                    splatMat.SetInt("_SplatCount", passCount);
+                    splatMat.SetInt("_SplatOffset", i);
+                    indexCounts.Add((passCount + 31) / 32); // geometry shader will emit 32 quads per point, so we need at least 1 vertex per 32 splats
+                    topologies.Add(MeshTopology.Points);
+                    materials.Add(splatMat);
+                }
+
+                // Convert screen colors back to linear
+                indexCounts.Add(3);
+                topologies.Add(MeshTopology.Triangles); // main mesh will be rendered as triangles
+                materials.Add(new Material(Shader.Find("VRChatGaussianSplatting/ToLinear")));
+
+                Directory.CreateDirectory(outputDataFolder + "/materials");
+                for (int i = 0; i < materials.Count; ++i) {
+                    Material splatMat = materials[i];
+                    splatMat.renderQueue = 3500 + i;
+                    string matPath = Path.Combine(outputDataFolder + "/materials", "pass_" + i + ".mat");
+                    AssetDatabase.CreateAsset(splatMat, matPath);
+                }
+
+                Mesh pointMesh = PointsMesh.GetMultiPassMesh(indexCounts, topologies, bbox);
                 AssetDatabase.CreateAsset(pointMesh, Path.Combine(outputDataFolder, materialName + "_mesh.asset"));
                 // Create prefab with the splat material and mesh
-                GameObject prefab = CreatePrefab(splatMat, pointMesh, prefabOutputPath, materialName);
+                GameObject prefab = CreatePrefab(materials, pointMesh, prefabOutputPath, materialName);
                 AssetDatabase.SaveAssets();
-
-                return new Output
-                {
-                    xyz      = xyzTex,
-                    colorDc  = colDcTex,
-                    rotation = rotTex,
-                    scale    = scaleTex,
-                    splatMaterial = splatMat,
-                    pointMesh = pointMesh,
-                    prefab   = prefab
-                };
             }
             finally
             {
@@ -220,69 +319,111 @@ namespace GaussianSplatting
 
 namespace GaussianSplatting.Editor.Importers
 {
-    using UnityEditor;
-    using UnityEngine;
-
-    /// <summary>
-    /// Minimal wizard exposed via *Gaussian Splatting ▸ Import PLY Splat…* that wraps
-    /// <see cref="PlySplatImporter.Import"/> and writes the produced textures to disk.
-    /// </summary>
     public class PlyImportWizard : EditorWindow
     {
-        string _plyPath;
-        string _outputMatPath = "Assets";
+        List<string> _plyPaths = new();  
+        string _outputFolder = "Assets";
+        bool _computeBoundingBox = true;   
+        bool _multiPassRendering = true;
+        int _splatsPerPass = 1024 * 1024; // 1 million splats per pass
 
-        [MenuItem("Gaussian Splatting/Import PLY Splat…")]
+        [MenuItem("Gaussian Splatting/Import PLY Splats…")]
         static void Init()
         {
-            PlyImportWizard window = (PlyImportWizard)EditorWindow.GetWindow(typeof(PlyImportWizard));
-            window.Show();
+            GetWindow<PlyImportWizard>().Show();
         }
 
         void OnGUI()
         {
-            EditorGUILayout.LabelField("PLY file", EditorStyles.boldLabel);
-            DrawPathField(ref _plyPath, "ply");
-            EditorGUILayout.LabelField("Output Path", EditorStyles.boldLabel);
-            _outputMatPath = EditorGUILayout.TextField(_outputMatPath);
+            EditorGUILayout.LabelField("PLY files", EditorStyles.boldLabel);
+            if (GUILayout.Button("Clear All PLYs"))
+            {
+                _plyPaths.Clear();
+            }
+            for (int i = 0; i < _plyPaths.Count; ++i)
+            {
+                EditorGUILayout.BeginHorizontal();
+                _plyPaths[i] = EditorGUILayout.TextField(_plyPaths[i]);
+                if (GUILayout.Button("…", GUILayout.Width(30)))
+                    _plyPaths[i] = EditorUtility.OpenFilePanel("Select PLY file", Application.dataPath, "ply");
+                if (GUILayout.Button("–", GUILayout.Width(20)))
+                {
+                    _plyPaths.RemoveAt(i);
+                    --i;
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
+            if (GUILayout.Button("+ Add PLY file")) _plyPaths.Add(string.Empty);
+            if (GUILayout.Button("Add All PLYs in Folder"))
+            {
+                string folder = EditorUtility.OpenFolderPanel("Select Folder with PLY files", Application.dataPath, "");
+                if (!string.IsNullOrEmpty(folder))
+                {
+                    string[] files = Directory.GetFiles(folder, "*.ply");
+                    foreach (string file in files)
+                    {
+                        _plyPaths.Add(file);
+                    }
+                }
+            }
+
+            EditorGUILayout.Space(10);
+            EditorGUILayout.LabelField("Output Folder", EditorStyles.boldLabel);
+            _outputFolder = EditorGUILayout.TextField(_outputFolder);
+            if (GUILayout.Button("…", GUILayout.Width(30)))
+                _outputFolder = EditorUtility.OpenFolderPanel("Select Output Folder", _outputFolder, "");
+
+            EditorGUILayout.Space(15);
+            EditorGUILayout.LabelField("Splat settings", EditorStyles.boldLabel);
+            _computeBoundingBox   = EditorGUILayout.Toggle("Compute Bounding Box", _computeBoundingBox);
+            _multiPassRendering   = EditorGUILayout.Toggle("Multi-Pass Rendering", _multiPassRendering);
+            if (_multiPassRendering)
+            {
+                _splatsPerPass = EditorGUILayout.IntField("Splat Count Per Pass", _splatsPerPass);
+                _splatsPerPass = Mathf.Clamp(_splatsPerPass, 1, 8 * 1024 * 1024);
+            }
+            else
+            {
+                _splatsPerPass = 0; // disable multi-pass rendering
+            }
+            EditorGUILayout.HelpBox("Multi-Pass Rendering can be faster on larger splats, but can have additional overhead", MessageType.Info);
             GUILayout.FlexibleSpace();
 
-            if (GUILayout.Button("Import Gaussian Splat"))
+            if (GUILayout.Button("Import All PLYs"))
             {
-                //query user for output material path
-                string plyName = Path.GetFileNameWithoutExtension(_plyPath);
-                
-                string outputPath = EditorUtility.SaveFilePanelInProject("Save Gaussian Splat", plyName + ".prefab", "prefab", "Save Gaussian Splat", _outputMatPath);
-                if (string.IsNullOrEmpty(outputPath))
-                    return; // user cancelled
-                _outputMatPath = Path.GetDirectoryName(outputPath);
-                Import(outputPath);
+                if (!_plyPaths.Any(p => !string.IsNullOrEmpty(p)))
+                {
+                    EditorUtility.DisplayDialog("PLY Import", "Add at least one PLY path.", "OK");
+                    return;
+                }
+
+                foreach (string ply in _plyPaths.Where(p => !string.IsNullOrEmpty(p)))
+                {
+                    string prefabName = Path.GetFileNameWithoutExtension(ply) + ".prefab";
+                    string relFolder  = FileUtil.GetProjectRelativePath(_outputFolder);
+                    if (string.IsNullOrEmpty(relFolder))
+                        relFolder = "Assets";
+                    string prefabPath = AssetDatabase.GenerateUniqueAssetPath(Path.Combine(relFolder, prefabName));
+                    ImportSingle(ply, prefabPath);
+                }
+                AssetDatabase.SaveAssets();
+                AssetDatabase.Refresh();
+                EditorUtility.DisplayDialog("PLY Import", "All imports completed.", "OK");
             }
         }
 
-        static void DrawPathField(ref string path, string extension)
-        {
-            EditorGUILayout.BeginHorizontal();
-            path = EditorGUILayout.TextField(path);
-            if (GUILayout.Button("…", GUILayout.Width(30)))
-                path = EditorUtility.OpenFilePanel("Select file", Application.dataPath, extension);
-            EditorGUILayout.EndHorizontal();
-        }
-
-        void Import(string path)
+        void ImportSingle(string plyPath, string prefabPath)
         {
             try
             {
-                EditorUtility.DisplayProgressBar("PLY Import", "Reading and packing splats…", 0f);
-                PlySplatImporter.Import(_plyPath, path);
-                AssetDatabase.SaveAssets();
-                AssetDatabase.Refresh();
-                EditorUtility.DisplayDialog("PLY Import", "Import completed successfully.", "OK");
+                EditorUtility.DisplayProgressBar("PLY Import",
+                    $"Importing {Path.GetFileName(plyPath)}", 0f);
+                PlySplatImporter.Import(plyPath, prefabPath, _computeBoundingBox, _splatsPerPass);
             }
             catch (Exception e)
             {
                 Debug.LogException(e);
-                EditorUtility.DisplayDialog("PLY Import Failed", e.Message, "OK");
             }
             finally
             {

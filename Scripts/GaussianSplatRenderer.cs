@@ -2,6 +2,15 @@
 using UdonSharp;
 using VRC.SDKBase;
 using VRC.SDK3.Rendering;
+using VRC.Udon;
+
+#if UNITY_EDITOR && !COMPILER_UDONSHARP
+using UnityEditor;
+using System.Collections.Generic;
+#endif
+
+namespace GaussianSplatting
+{
 
 [UdonBehaviourSyncMode(BehaviourSyncMode.Continuous)]
 public class GaussianSplatRenderer : UdonSharpBehaviour
@@ -29,8 +38,15 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
     [SerializeField] float cameraPositionQuantization = 0.1f;
     [Tooltip("If true, the splat render order will be updated every frame. Useful for animated splats. If false, it will only update when the camera position changes.")]
     [SerializeField] bool alwaysUpdate = false;
+    [Tooltip("Number of sorting steps for the radix sort. The more steps the more bits of the distance can be sorted, so the render order is more accurate. The fewer steps the faster the sorting, so it is a tradeoff between performance and accuracy. Default is 16 bits, which is 4 sorting steps.")]
+    [Range(2, 8)] [SerializeField] int sortingSteps = 4;
     [Tooltip("Render texture used to store the sorted splat render order. This should be a RenderTexture with the same dimensions as the sorting textures used in the radix sort.")]
     public RenderTexture splatRenderOrder;
+
+    [Tooltip("If true, the material properties will be overridden with the values set in this script. If false, the material properties will be set to their default values.")]
+    [SerializeField] public bool overrideMaterialProperties = false;
+    [Range(0.0f, 2.0f)] [SerializeField] public float quadScale = 1.1f;
+    [Range(0.0f, 2.0f)] [SerializeField] public float gaussianScale = 1.0f;
 
     [Header("Optional Mirror")]
     [Tooltip("Optional mirror GameObject. If set, the script will also sort splats for the mirror camera position.")]
@@ -130,17 +146,31 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
         SetSplatObjectIndex(splatObjectIndex);
 
         _meshRenderer = splatObject.GetComponent<MeshRenderer>();
-        Material splatMat = _meshRenderer.material;
-        splatMat.SetTexture("_GS_RenderOrder", splatRenderOrder);
-        splatMat.SetFloat("_EDITOR_MODE", 0.0f); // Disable editor mode for runtime
-        Texture positions = splatMat.GetTexture("_GS_Positions");
+
+        Material[] splatMats = _meshRenderer.materials;
+        Vector4 minMaxSortDistance = new Vector4(minSortDistance, maxSortDistance, 0, 0);
+        for (int i = 0; i < splatMats.Length; i++)
+        {
+            Material splatMat = splatMats[i];
+            splatMat.SetTexture("_GS_RenderOrder", splatRenderOrder);
+            splatMat.SetVector("_MinMaxSortDistance", minMaxSortDistance);
+            if (overrideMaterialProperties)
+            {
+                // Override material properties if specified
+                splatMat.SetFloat("_QuadScale", quadScale);
+                splatMat.SetFloat("_GaussianMul", gaussianScale);
+            }
+        }
+
+        Texture positions = splatMats[1].GetTexture("_GS_Positions");
         _radixSort.elementCount = positions.width * positions.height;
+        _radixSort.maxKeyBits = sortingSteps * 4; // Each sorting step sorts 4 bits, so total bits = steps * 4
         keyValueMat = _radixSort.computeKeyValues;
         keyValueMat.SetTexture("_GS_Positions", positions);
-        Vector4 minMaxSortDistance = new Vector4(minSortDistance, maxSortDistance, 0, 0);
         keyValueMat.SetVector("_MinMaxSortDistance", minMaxSortDistance);
-        splatMat.SetVector("_MinMaxSortDistance", minMaxSortDistance);
+        keyValueMat.SetFloat("_KeyScale", (float)((1 << (sortingSteps * 4)) - 1));
         keyValueMat.SetMatrix("_SplatToWorld", splatObject.transform.localToWorldMatrix);
+
     }
 
     void SortCamera(Vector3 cameraPos, int cameraID, bool forceUpdate = false)
@@ -185,4 +215,107 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
         Vector3 screenCamPos = VRCCameraSettings.ScreenCamera.Position;
         SortCameras(screenCamPos);
     }
+
+#if UNITY_EDITOR && !COMPILER_UDONSHARP
+    // Generate turn on toggles for all splat objects in the inspector
+    [ContextMenu("Generate Gaussian Splat Toggles for the renderer")]
+    void GenerateSplatToggles()
+    {
+        GameObject toggleParent = new GameObject("Splat Toggles");
+        int toggleIndex = 0;
+
+        var renderers = FindObjectsByType<GaussianSplatRenderer>(FindObjectsSortMode.InstanceID);
+
+        if(renderers.Length > 1)
+        {
+            Debug.LogError("Multiple GaussianSplatRenderer instances found. Please ensure only one instance is present in the scene.");
+            return;
+        }
+
+        foreach (var renderer in renderers)
+        {
+            if (renderer.splatObjects == null || renderer.splatObjects.Length == 0)
+            {
+                Debug.LogWarning($"GaussianSplatRenderer on {renderer.gameObject.name} has no splat objects assigned.");
+                continue;
+            }
+
+            for (int i = 0; i < renderer.splatObjects.Length; i++)
+            {
+                GameObject splatObj = renderer.splatObjects[i];
+                if (splatObj != null)
+                {
+                    GameObject toggleObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    toggleObject.name = splatObj.name + " Toggle";
+                    toggleObject.transform.SetParent(toggleParent.transform);
+                    toggleObject.transform.localPosition = new Vector3(toggleIndex * 0.2f, 0.5f, 0); // Arrange toggles horizontally
+                    toggleObject.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f); // Adjust size for visibility
+
+                    TurnOnToggle toggle = toggleObject.AddComponent<TurnOnToggle>();
+                    toggle.enableObjectIndex = i;
+                    toggle.gaussianSplatRenderer = renderer;
+                 
+                    Renderer toggleRenderer = toggleObject.GetComponent<Renderer>();
+                    toggleRenderer.sharedMaterial = new Material(Shader.Find("Standard"));
+                    toggleRenderer.sharedMaterial.color = Color.gray;
+                    
+                    Collider collider = toggleObject.GetComponent<Collider>();
+                    collider.isTrigger = true; // Make the toggle a trigger to allow interaction
+
+                    // Add a button to the inspector to set the splat object index
+                    UnityEditorInternal.ComponentUtility.MoveComponentUp(toggle);
+                    toggleIndex++;
+                }
+            }
+        }
+    }
+
+    List<GaussianSplatObject> GetAllObjectsOnlyInScene()
+    {
+        List<GaussianSplatObject> objectsInScene = new List<GaussianSplatObject>();
+
+        foreach (GaussianSplatObject go in Resources.FindObjectsOfTypeAll(typeof(GaussianSplatObject)) as GaussianSplatObject[])
+        {
+            if (!EditorUtility.IsPersistent(go.transform.root.gameObject) && !(go.hideFlags == HideFlags.NotEditable || go.hideFlags == HideFlags.HideAndDontSave))
+                objectsInScene.Add(go);
+        }
+
+        return objectsInScene;
+    }
+
+    [ContextMenu("Collect Gaussian Splat Objects for the renderer")]
+    void CollectSplatObjects()
+    {
+        GaussianSplatRenderer[] renderers = FindObjectsByType<GaussianSplatRenderer>(FindObjectsSortMode.InstanceID);
+
+        if (renderers.Length > 1)
+        {
+            Debug.LogError("Multiple GaussianSplatRenderer instances found. Please ensure only one instance is present in the scene.");
+            return;
+        }
+
+        foreach (var renderer in renderers)
+        {
+            List<GaussianSplatObject> objectsInScene = GetAllObjectsOnlyInScene();
+            renderer.splatObjects = new GameObject[objectsInScene.Count];
+
+            for (int i = 0; i < objectsInScene.Count; i++)
+            {
+                GaussianSplatObject go = objectsInScene[i];
+                if (go != null)
+                {
+                    renderer.splatObjects[i] = go.gameObject;
+                }
+                else
+                {
+                    Debug.LogWarning($"Gaussian Splat Object at index {i} is null. Please ensure all objects are valid.");
+                }
+            }
+
+            Debug.Log($"Collected {renderer.splatObjects.Length} Gaussian Splat Objects for the renderer.");
+        }
+    }
+#endif
+}
+
 }

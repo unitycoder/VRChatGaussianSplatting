@@ -17,8 +17,9 @@ float _AlphaCutoff;
 float _Exposure;
 float _Opacity;
 float _ScaleCutoff;
-int _DisplayFirstNSplats;
 float2 _MinMaxSortDistance;
+int _SplatCount;
+int _SplatOffset;
 
 struct SplatData {
     float3 mean;
@@ -44,7 +45,7 @@ SplatData LoadSplatData(uint id) {
     return o;
 }
 
-SplatData LoadSplatDataRenderOrder(uint id, float3 camPos) {
+SplatData LoadSplatDataRenderOrder(uint id) {
     bool validOrder = _GS_RenderOrder_TexelSize.z >= _GS_Positions_TexelSize.z;
     uint reordered_id = id;
     bool valid = true;

@@ -4,6 +4,7 @@ Shader "VRChatGaussianSplatting/ComputeKeyValue" {
         [HideInInspector] _CameraPos ("Camera Position", Vector) = (0, 0, 0, 0)
         [HideInInspector] _MinMaxSortDistance ("Min Max Sort Distance", Vector) = (0, 0, 0, 0)
         [HideInInspector] _ElementCount ("Element Count", Int) = 0
+        [HideInInspector] _KeyScale ("Key Scale", Float) = 1.0
         _CameraPosQuantization ("Camera Position Quantization", Range(0, 0.1)) = 0.01
     }
     SubShader {
@@ -22,12 +23,13 @@ Shader "VRChatGaussianSplatting/ComputeKeyValue" {
 
             float4x4 _SplatToWorld;
             float3 _CameraPos;
+            float _KeyScale;
 
-            uint float2fixed16(float v) {
+            uint float2fixed(float v) {
                 if(isnan(v) || isinf(v)) {
                     return 0xFFFFFFFF; // Return max value for NaN or Inf
                 }
-                return round(clamp(v, 0.0, 1.0) * 65535.0);
+                return round(clamp(v, 0.0, 1.0) * _KeyScale);
             }
 
             uint ComputeD(uint id) {
@@ -35,8 +37,8 @@ Shader "VRChatGaussianSplatting/ComputeKeyValue" {
                 float3 splat_pos = mul(_SplatToWorld, float4(splat.mean, 1.0)).xyz;
                 float dist = length(_CameraPos - splat_pos);
                 float dist_norm = (dist - _MinMaxSortDistance.x) / (_MinMaxSortDistance.y - _MinMaxSortDistance.x);
-                return float2fixed16(sqrt(dist_norm)); //Front to back sorting
-                //return float2fixed16(1.0 - sqrt(dist_norm)); //Back to front sorting
+                return float2fixed(sqrt(dist_norm)); //Front to back sorting
+                //return float2fixed(1.0 - sqrt(dist_norm)); //Back to front sorting
             }
 
             float2 frag (v2f i) : SV_Target {
