@@ -1,10 +1,12 @@
-#include "RadixSort/Utils.cginc"
+#include "../RadixSort/Utils.cginc"
 
 Texture2D _GS_Positions, _GS_Scales, _GS_Rotations, _GS_Colors;
 Texture2DArray<float> _GS_RenderOrder;
+Texture2DArray<float> _GS_RenderOrderPrecomputed;
 Texture2D<float> _GS_RenderOrderMirror;
 float4 _GS_Positions_TexelSize;
 float4 _GS_RenderOrder_TexelSize;
+float4 _GS_RenderOrderPrecomputed_TexelSize;
 float _VRChatCameraMode;
 float _VRChatMirrorMode;
 float3 _MirrorCameraPos, _VRChatMirrorCameraPos;
@@ -45,6 +47,31 @@ SplatData LoadSplatData(uint id) {
     return o;
 }
 
+int GetPrecomputedRenderOrderIndex(uint id, float3 cam_dir) {
+    float3 dirs[10] = {
+        float3(0.57735027, 0.57735027, 0.57735027), float3(0.57735027, 0.57735027, -0.57735027), float3(0.57735027, -0.57735027, 0.57735027),
+        float3(0.57735027, -0.57735027, -0.57735027), float3(0.00000000, 0.35682209, 0.93417236), float3(0.00000000, 0.35682209, -0.93417236),
+        float3(0.35682209, 0.93417236, 0.00000000), float3(0.35682209, -0.93417236, 0.00000000), float3(0.93417236, 0.00000000, 0.35682209),
+        float3(0.93417236, 0.00000000, -0.35682209)
+    };
+    float3 cam_dir_normalized = normalize(cam_dir);
+    float best_dot = 0.0;
+    int best_index = 0;
+    [unroll] for(int i = 0; i < 10; i++) {
+        float dot_product = dot(dirs[i], cam_dir_normalized);
+        if(abs(dot_product) > abs(best_dot)) {
+            best_dot = dot_product;
+            best_index = i;
+        }
+    }
+    uint totalSplatCount = uint(_GS_Positions_TexelSize.z) * uint(_GS_Positions_TexelSize.w);
+    if(best_dot > 0.0) {
+        id = totalSplatCount - id - 1; // flip the order for positive directions
+    }
+    uint2 coord = uint2(id % uint(_GS_RenderOrderPrecomputed_TexelSize.z), id / uint(_GS_RenderOrderPrecomputed_TexelSize.z));
+    return _GS_RenderOrderPrecomputed[int3(coord, best_index)];
+}
+
 SplatData LoadSplatDataRenderOrder(uint id) {
     bool validOrder = _GS_RenderOrder_TexelSize.z >= _GS_Positions_TexelSize.z;
     uint reordered_id = id;
@@ -66,5 +93,13 @@ SplatData LoadSplatDataRenderOrder(uint id) {
     SplatData data = LoadSplatData(reordered_id);
     data.id = reordered_id; // store the original ID for debugging purposes
     data.valid = valid;
+    return data;
+}
+
+SplatData LoadSplatDataPrecomputedOrder(uint id, float3 cam_dir) {
+    int precomputedIndex = GetPrecomputedRenderOrderIndex(id, cam_dir);
+    SplatData data = LoadSplatData(precomputedIndex);
+    data.id = precomputedIndex; // store the original ID for debugging purposes
+    data.valid = true; // precomputed order is always valid
     return data;
 }

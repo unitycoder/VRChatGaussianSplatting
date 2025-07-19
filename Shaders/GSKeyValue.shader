@@ -18,7 +18,7 @@ Shader "VRChatGaussianSplatting/ComputeKeyValue" {
             #pragma vertex   vert
             #pragma fragment frag
 
-            #include "RadixSort/RadixSort.cginc"
+            #include "../RadixSort/RadixSort.cginc"
             #include "GSData.cginc"
 
             float4x4 _SplatToWorld;

@@ -1,6 +1,7 @@
 #define UNITY_SHADER_NO_UPGRADE 1 
 #pragma target 5.0
 #pragma exclude_renderers gles
+#pragma shader_feature_local _PRECOMPUTED_SORTING_ON
 #pragma vertex vert
 #pragma fragment frag
 #pragma geometry geo
@@ -51,7 +52,12 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
     UNITY_INITIALIZE_OUTPUT(g2f, o);
     UNITY_TRANSFER_VERTEX_OUTPUT_STEREO(input[0], o);
 
+    #if _PRECOMPUTED_SORTING_ON
+    float3 cam_dir = mul(transpose(UNITY_MATRIX_IT_MV), float4(0, 0, 1, 0)).xyz; // camera direction in object space
+    SplatData splat = LoadSplatDataPrecomputedOrder(id, cam_dir);
+    #else 
     SplatData splat = LoadSplatDataRenderOrder(id);
+    #endif
 
     if (!splat.valid || (splat.color.a < _AlphaCutoff) || any(splat.scale > _ScaleCutoff)) return; 
 
@@ -112,6 +118,6 @@ float4 frag(g2f input) : SV_Target {
     float rho0 = exp(- 2.0 * dist2 * _GaussianMul * (_QuadScale * _QuadScale));
     float rho1 = smoothstep(SMOOTHSTEP_1, SMOOTHSTEP_0, dist2);
     float rho = input.color.a * rho1 * rho0;
-    if (rho < 0.01) discard;  // skip regions with low density
+    if (rho < 0.001) discard;  // skip regions with low density
     return float4(input.color.rgb * rho, rho);
 }

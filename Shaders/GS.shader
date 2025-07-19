@@ -13,6 +13,8 @@ Shader "VRChatGaussianSplatting/GaussianSplatting"
         [HideInInspector] _MinMaxSortDistance ("Min Max Distance", Vector) = (0, 0, 0, 0)
         [HideInInspector] _SplatCount ("Splat Count", Int) = 0
         [HideInInspector] _SplatOffset ("Splat Offset", Int) = 0
+        [Toggle] _PRECOMPUTED_SORTING ("Precomputed Sorting", Integer) = 0
+        [HideInInspector] _GS_RenderOrderPrecomputed ("Precomputed Render Order", 2DArray) = "" {}
 
         _QuadScale ("Quad Scale", Range(0, 2)) = 1.1
         _GaussianMul ("Gaussian Scale", Range(0, 2)) = 1.0
@@ -34,6 +36,11 @@ Shader "VRChatGaussianSplatting/GaussianSplatting"
             Blend OneMinusDstAlpha One //Front to back blending
             Cull Off
             ZWrite Off
+
+            Stencil {
+                Ref 1
+                Comp NotEqual  // skip pixels where first pass wrote 1
+            }
             CGPROGRAM
         	#include "GS.cginc"
             ENDCG

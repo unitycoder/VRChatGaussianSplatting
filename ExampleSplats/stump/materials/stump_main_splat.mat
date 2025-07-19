@@ -56,7 +56,7 @@ Material:
     - _HACK_UNIFORM: 1
     - _Log2MinScale: -12
     - _Opacity: 1
-    - _QuadScale: 1.1
+    - _QuadScale: 1
     - _ScaleCutoff: 100
     - _SplatCount: 1048576
     - _SplatOffset: 0

@@ -7,22 +7,23 @@ Shader "VRChatGaussianSplatting/AlphaDepthMask"
         GrabPass {}
         Pass
         {
-            ZWrite On
+            ZWrite Off
             ZTest Always
             Cull Off
+            ColorMask 0
+            Stencil {
+                Ref 1
+                Comp Always
+                Pass Replace   // write 1 into stencil
+            }
             CGPROGRAM
             #include "FullscreenCommon.cginc"
-            UNITY_DECLARE_SCREENSPACE_TEXTURE(_GrabTexture)
-            float4 frag(v2f i, out float depth : SV_Depth) : SV_Target {
+            UNITY_DECLARE_SCREENSPACE_TEXTURE(_GrabTexture);
+            float4 frag(v2f i) : SV_Target {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
                 fixed4 col = UNITY_SAMPLE_SCREENSPACE_TEXTURE(_GrabTexture, i.uv.xy); 
-                if(col.a > 0.99) {
-                    depth = 1.0; // Set depth to far plane for fully opaque pixels to cull everything behind them
-                    col.a = 1.0;
-                } else {
-                    discard;
-                }
-                return col;
+                if(col.a < 0.99) discard;
+                return 0.0;
             }
             ENDCG
         }

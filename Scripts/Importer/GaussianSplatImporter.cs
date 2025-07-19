@@ -72,7 +72,7 @@ namespace GaussianSplatting
             return Part1By2(x) | (Part1By2(y) << 1) | (Part1By2(z) << 2);
         }
 
-        public static GameObject CreatePrefab(List<Material> materials, Mesh mesh, string assetPath, string name)
+        public static GameObject CreatePrefab(List<Material> materials, Mesh mesh, string assetPath, string name, bool addGaussianSplatObject = true)
         {
             var go = new GameObject(name);
             go.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
@@ -81,13 +81,17 @@ namespace GaussianSplatting
             MeshRenderer meshRenderer = go.AddComponent<MeshRenderer>();
             meshRenderer.sharedMaterials = materials.ToArray();
             meshRenderer.allowOcclusionWhenDynamic = false;
-            go.AddComponent<GaussianSplatObject>();
+            if (addGaussianSplatObject) {
+                // Add the GaussianSplatObject component to the GameObject
+                // This is necessary for the prefab to be recognized as a Gaussian Splat Object for the renderer
+                go.AddComponent<GaussianSplatObject>();
+            }
             var prefab = PrefabUtility.SaveAsPrefabAssetAndConnect(go, assetPath, InteractionMode.AutomatedAction);
             GameObject.DestroyImmediate(go); // clean up the temporary GameObject
             return prefab;
         }
 
-        public static void Import(string plyFile, string prefabOutputPath, bool computeBoundingBox, int splatsPerPass)
+        public static void Import(string plyFile, string prefabOutputPath, bool computeBoundingBox, int splatsPerPass, bool precomputeSorting = false)
         {
             if (!File.Exists(plyFile))
                 throw new FileNotFoundException(plyFile);
@@ -179,6 +183,48 @@ namespace GaussianSplatting
                     bbox.extents = new Vector3(1000, 1000, 1000);
                 }
 
+                // Get name of the material from the path
+                string materialName = Path.GetFileNameWithoutExtension(prefabOutputPath);
+                string outputDataFolder = Path.GetDirectoryName(prefabOutputPath) + "/" + materialName; 
+
+                // Create output data folder if it doesn't exist
+                Directory.CreateDirectory(outputDataFolder);
+
+                Texture2DArray sortedTex = null;
+                if(precomputeSorting) {
+                    Vector3[] octahedral_dirs = { 
+                        new Vector3( 0.57735027f,  0.57735027f,  0.57735027f), new Vector3( 0.57735027f,  0.57735027f, -0.57735027f), new Vector3( 0.57735027f, -0.57735027f,  0.57735027f),
+                        new Vector3( 0.57735027f, -0.57735027f, -0.57735027f), new Vector3( 0.00000000f,  0.35682209f,  0.93417236f), new Vector3( 0.00000000f,  0.35682209f, -0.93417236f), 
+                        new Vector3( 0.35682209f,  0.93417236f,  0.00000000f), new Vector3( 0.35682209f, -0.93417236f,  0.00000000f), new Vector3( 0.93417236f,  0.00000000f,  0.35682209f), 
+                        new Vector3( 0.93417236f,  0.00000000f, -0.35682209f)
+                    };
+                    // Precompute sorting for octahedral directions
+                    int[][] sortedIndices = new int[octahedral_dirs.Length][];
+                    for (int i = 0; i < octahedral_dirs.Length; ++i)
+                    {
+                        Vector3 dir = octahedral_dirs[i];
+                        sortedIndices[i] = new int[n];
+                        for (int j = 0; j < n; ++j)
+                        {
+                            sortedIndices[i][j] = j;
+                        }
+                        Array.Sort(sortedIndices[i], (a, b) => Vector3.Dot(data[a].pos, dir).CompareTo(Vector3.Dot(data[b].pos, dir)));
+                    }
+                    
+                    sortedTex = NewTextureArray(side, octahedral_dirs.Length, TextureFormat.RFloat, "SortedOctahedralDirections");
+                    for (int i = 0; i < octahedral_dirs.Length; ++i)
+                    {
+                        Color[] sortedPixels = new Color[side * side];
+                        for (int j = 0; j < n; ++j)
+                        {
+                            sortedPixels[j] = new Color(sortedIndices[i][j], 0f, 0f, 0f); // Store only the index in the red channel
+                        }
+                        sortedTex.SetPixels(sortedPixels, i);
+                    }
+                    sortedTex.Apply(false, true);
+                    SaveTextureAsset(sortedTex, outputDataFolder, materialName + "_sorted_oct_dirs");
+                }
+
 
                 Texture2D xyzTex     = NewTexture(side, TextureFormat.RGBAFloat, "XYZ");
                 Texture2D colDcTex   = NewTexture(side, TextureFormat.RGBA32, "ColorDC");
@@ -213,12 +259,7 @@ namespace GaussianSplatting
                 rotTex.Apply(false, true);
                 scaleTex.Apply(false, true);
 
-                // Get name of the material from the path
-                string materialName = Path.GetFileNameWithoutExtension(prefabOutputPath);
-                string outputDataFolder = Path.GetDirectoryName(prefabOutputPath) + "/" + materialName; 
 
-                // Create output data folder if it doesn't exist
-                Directory.CreateDirectory(outputDataFolder);
 
                 SaveTextureAsset(xyzTex, outputDataFolder, materialName + "_xyz");
                 SaveTextureAsset(colDcTex, outputDataFolder, materialName + "_color_dc");
@@ -238,7 +279,8 @@ namespace GaussianSplatting
                 Material convertToSRGB = new Material(Shader.Find("VRChatGaussianSplatting/ToSRGB"));
                 convertToSRGB.name = "convert_to_srgb";
                 materials.Add(convertToSRGB);
-
+                int totalPassCount = (effectiveCount + splatsPerPass - 1) / splatsPerPass; // number of passes needed
+                int alphaMaskCount = totalPassCount;// + 1) / 2;
                 Material mainMat = null;
                 for (int i = 0; i < effectiveCount; i += splatsPerPass)
                 {
@@ -254,10 +296,19 @@ namespace GaussianSplatting
                         splatMat.SetTexture("_GS_Rotations", rotTex);
                         splatMat.SetTexture("_GS_Scales", scaleTex);
                         mainMat = splatMat;
+                        if(precomputeSorting)
+                        {
+                            splatMat.SetTexture("_GS_RenderOrderPrecomputed", sortedTex);
+                            splatMat.SetInteger("_PRECOMPUTED_SORTING", 1);
+                            splatMat.EnableKeyword("_PRECOMPUTED_SORTING");
+                            splatMat.EnableKeyword("_PRECOMPUTED_SORTING_ON");
+                            
+                        }
                     } else {
                         splatMat = new Material(mainMat); // make a material variant
                         splatMat.parent = mainMat;
-
+                    }
+                    if(pass > 0 && pass < alphaMaskCount) {
                         // Create alpha depth mask pass
                         indexCounts.Add(3);
                         topologies.Add(MeshTopology.Triangles); // alpha depth mask will be rendered as triangles
@@ -291,7 +342,7 @@ namespace GaussianSplatting
                 Mesh pointMesh = PointsMesh.GetMultiPassMesh(indexCounts, topologies, bbox);
                 AssetDatabase.CreateAsset(pointMesh, Path.Combine(outputDataFolder, materialName + "_mesh.asset"));
                 // Create prefab with the splat material and mesh
-                GameObject prefab = CreatePrefab(materials, pointMesh, prefabOutputPath, materialName);
+                GameObject prefab = CreatePrefab(materials, pointMesh, prefabOutputPath, materialName, !precomputeSorting);
                 AssetDatabase.SaveAssets();
             }
             finally
@@ -313,7 +364,25 @@ namespace GaussianSplatting
             return tex;
         }
 
+        static Texture2DArray NewTextureArray(int size, int count, TextureFormat format, string name)
+        {
+            var tex = new Texture2DArray(size, size, count, format, mipChain: false, linear: true)
+            {
+                name       = name,
+                wrapMode   = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Point
+            };
+            return tex;
+        }
+
         static void SaveTextureAsset(Texture2D tex, string folder, string name)
+        {
+            string path = Path.Combine(folder, $"{name}.asset");
+            path = AssetDatabase.GenerateUniqueAssetPath(path);
+            AssetDatabase.CreateAsset(tex, path);
+        }
+
+        static void SaveTextureAsset(Texture2DArray tex, string folder, string name)
         {
             string path = Path.Combine(folder, $"{name}.asset");
             path = AssetDatabase.GenerateUniqueAssetPath(path);
@@ -330,7 +399,8 @@ namespace GaussianSplatting.Editor.Importers
         string _outputFolder = "Assets";
         bool _computeBoundingBox = true;   
         bool _multiPassRendering = true;
-        int _splatsPerPass = 1024 * 1024; // 1 million splats per pass
+        int _splatsPerPass =  3 * 256 * 1024; // 1 million splats per pass
+        bool _precomputeSorting = false; // precompute sorting for octahedral directions
 
         [MenuItem("Gaussian Splatting/Import PLY Splats…")]
         static void Init()
@@ -393,6 +463,11 @@ namespace GaussianSplatting.Editor.Importers
                 _splatsPerPass = 0; // disable multi-pass rendering
             }
             EditorGUILayout.HelpBox("Multi-Pass Rendering can be faster on larger splats, but can have additional overhead", MessageType.Info);
+            _precomputeSorting = EditorGUILayout.Toggle("Precompute Sorting", _precomputeSorting);
+            if (_precomputeSorting)
+            {
+                EditorGUILayout.HelpBox("Precomputing sorting for octahedral directions, makes the gaussian splatting work standalone, without the GaussianSplatRenderer. However this takes way more texture memory and might have rendering artifacts", MessageType.Info);
+            }
             GUILayout.FlexibleSpace();
 
             if (GUILayout.Button("Import All PLYs"))
@@ -424,7 +499,7 @@ namespace GaussianSplatting.Editor.Importers
             {
                 EditorUtility.DisplayProgressBar("PLY Import",
                     $"Importing {Path.GetFileName(plyPath)}", 0f);
-                PlySplatImporter.Import(plyPath, prefabPath, _computeBoundingBox, _splatsPerPass);
+                PlySplatImporter.Import(plyPath, prefabPath, _computeBoundingBox, _splatsPerPass, _precomputeSorting);
             }
             catch (Exception e)
             {
