@@ -48,9 +48,9 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
     [Range(0.0f, 2.0f)] [SerializeField] public float quadScale = 1.1f;
     [Range(0.0f, 2.0f)] [SerializeField] public float gaussianScale = 1.0f;
 
-    [Header("Optional Mirror")]
-    [Tooltip("Optional mirror GameObject. If set, the script will also sort splats for the mirror camera position.")]
-    public GameObject mirror;
+    // [Header("Optional Mirror")]
+    // [Tooltip("Optional mirror GameObject. If set, the script will also sort splats for the mirror camera position.")]
+    // public GameObject mirror;
 
     void ResetCameraPositions()
     {

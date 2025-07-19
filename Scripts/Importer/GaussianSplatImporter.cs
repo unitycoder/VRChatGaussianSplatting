@@ -225,6 +225,7 @@ namespace GaussianSplatting
                 SaveTextureAsset(rotTex, outputDataFolder, materialName + "_rotation");
                 SaveTextureAsset(scaleTex, outputDataFolder, materialName + "_scale");  
                 
+                if(splatsPerPass == 0) splatsPerPass = effectiveCount;
                 splatsPerPass = Mathf.Min(splatsPerPass, effectiveCount);
      
                 List<Material> materials = new List<Material>();
@@ -234,7 +235,9 @@ namespace GaussianSplatting
                 //Convert screen colors to sRGB
                 indexCounts.Add(3);
                 topologies.Add(MeshTopology.Triangles); // main mesh will be rendered as triangles
-                materials.Add(new Material(Shader.Find("VRChatGaussianSplatting/ToSRGB")));
+                Material convertToSRGB = new Material(Shader.Find("VRChatGaussianSplatting/ToSRGB"));
+                convertToSRGB.name = "convert_to_srgb";
+                materials.Add(convertToSRGB);
 
                 Material mainMat = null;
                 for (int i = 0; i < effectiveCount; i += splatsPerPass)
@@ -273,13 +276,15 @@ namespace GaussianSplatting
                 // Convert screen colors back to linear
                 indexCounts.Add(3);
                 topologies.Add(MeshTopology.Triangles); // main mesh will be rendered as triangles
-                materials.Add(new Material(Shader.Find("VRChatGaussianSplatting/ToLinear")));
+                Material convertToLinear = new Material(Shader.Find("VRChatGaussianSplatting/ToLinear"));
+                convertToLinear.name = "convert_to_linear";
+                materials.Add(convertToLinear);
 
                 Directory.CreateDirectory(outputDataFolder + "/materials");
                 for (int i = 0; i < materials.Count; ++i) {
                     Material splatMat = materials[i];
                     splatMat.renderQueue = 3500 + i;
-                    string matPath = Path.Combine(outputDataFolder + "/materials", "pass_" + i + ".mat");
+                    string matPath = Path.Combine(outputDataFolder + "/materials", splatMat.name + ".mat");
                     AssetDatabase.CreateAsset(splatMat, matPath);
                 }
 
