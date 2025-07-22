@@ -91,7 +91,7 @@ namespace GaussianSplatting
             return prefab;
         }
 
-        public static void Import(string plyFile, string prefabOutputPath, bool computeBoundingBox, int splatsPerPass, bool precomputeSorting = false)
+        public static void Import(string plyFile, string prefabOutputPath, bool computeBoundingBox, int splatsPerPass, bool precomputeSorting = false, int maxAlphaMaskCount = 1, bool useSRGB = true)
         {
             if (!File.Exists(plyFile))
                 throw new FileNotFoundException(plyFile);
@@ -230,8 +230,13 @@ namespace GaussianSplatting
                 Texture2D colDcTex   = NewTexture(side, TextureFormat.RGBA32, "ColorDC");
                 Texture2D rotTex     = NewTexture(side, TextureFormat.RGBA32, "Rotation");
                 Texture2D scaleTex   = NewTexture(side, TextureFormat.RGB9e5Float, "Scale");
-                Shader shader = Shader.Find("VRChatGaussianSplatting/GaussianSplatting");
-              
+
+                Shader shader = null;
+                if(useSRGB) {
+                    shader = Shader.Find("VRChatGaussianSplatting/GaussianSplatting");
+                } else {
+                    shader = Shader.Find("VRChatGaussianSplatting/GaussianSplattingSimpleBackToFront");
+                }
 
                 var xyzPixels   = new Color[side * side];
                 var colPixels   = new Color[side * side];
@@ -273,14 +278,22 @@ namespace GaussianSplatting
                 List<int> indexCounts = new List<int>();
                 List<MeshTopology> topologies = new List<MeshTopology>();
 
-                //Convert screen colors to sRGB
-                indexCounts.Add(3);
-                topologies.Add(MeshTopology.Triangles); // main mesh will be rendered as triangles
-                Material convertToSRGB = new Material(Shader.Find("VRChatGaussianSplatting/ToSRGB"));
-                convertToSRGB.name = "convert_to_srgb";
-                materials.Add(convertToSRGB);
                 int totalPassCount = (effectiveCount + splatsPerPass - 1) / splatsPerPass; // number of passes needed
-                int alphaMaskCount = totalPassCount;// + 1) / 2;
+                int alphaMaskCount = Mathf.Min(maxAlphaMaskCount, totalPassCount - 1); // number of alpha mask passes needed
+                //update splats per pass to make equal chunks
+                splatsPerPass = (effectiveCount + totalPassCount - 1) / totalPassCount;
+
+                if(useSRGB) {
+                    //Convert screen colors to sRGB
+                    indexCounts.Add(3);
+                    topologies.Add(MeshTopology.Triangles); // main mesh will be rendered as triangles
+                    Material convertToSRGB = new Material(Shader.Find("VRChatGaussianSplatting/ToSRGB"));
+                    convertToSRGB.name = "convert_to_srgb";
+                    materials.Add(convertToSRGB);
+                } else {
+                    splatsPerPass = effectiveCount;
+                }
+              
                 Material mainMat = null;
                 for (int i = 0; i < effectiveCount; i += splatsPerPass)
                 {
@@ -295,6 +308,7 @@ namespace GaussianSplatting
                         splatMat.SetTexture("_GS_Colors", colDcTex);
                         splatMat.SetTexture("_GS_Rotations", rotTex);
                         splatMat.SetTexture("_GS_Scales", scaleTex);
+                        splatMat.SetInt("_ActualSplatCount", n);
                         mainMat = splatMat;
                         if(precomputeSorting)
                         {
@@ -302,13 +316,12 @@ namespace GaussianSplatting
                             splatMat.SetInteger("_PRECOMPUTED_SORTING", 1);
                             splatMat.EnableKeyword("_PRECOMPUTED_SORTING");
                             splatMat.EnableKeyword("_PRECOMPUTED_SORTING_ON");
-                            
                         }
                     } else {
                         splatMat = new Material(mainMat); // make a material variant
                         splatMat.parent = mainMat;
                     }
-                    if(pass > 0 && pass < alphaMaskCount) {
+                    if(pass > 0 && pass <= alphaMaskCount) {
                         // Create alpha depth mask pass
                         indexCounts.Add(3);
                         topologies.Add(MeshTopology.Triangles); // alpha depth mask will be rendered as triangles
@@ -324,12 +337,14 @@ namespace GaussianSplatting
                     materials.Add(splatMat);
                 }
 
-                // Convert screen colors back to linear
-                indexCounts.Add(3);
-                topologies.Add(MeshTopology.Triangles); // main mesh will be rendered as triangles
-                Material convertToLinear = new Material(Shader.Find("VRChatGaussianSplatting/ToLinear"));
-                convertToLinear.name = "convert_to_linear";
-                materials.Add(convertToLinear);
+                if(useSRGB) {
+                    // Convert screen colors back to linear
+                    indexCounts.Add(3);
+                    topologies.Add(MeshTopology.Triangles); // main mesh will be rendered as triangles
+                    Material convertToLinear = new Material(Shader.Find("VRChatGaussianSplatting/ToLinear"));
+                    convertToLinear.name = "convert_to_linear";
+                    materials.Add(convertToLinear);
+                }
 
                 Directory.CreateDirectory(outputDataFolder + "/materials");
                 for (int i = 0; i < materials.Count; ++i) {
@@ -401,7 +416,8 @@ namespace GaussianSplatting.Editor.Importers
         bool _multiPassRendering = true;
         int _splatsPerPass =  3 * 256 * 1024; // 1 million splats per pass
         bool _precomputeSorting = false; // precompute sorting for octahedral directions
-
+        int _maxAlphaMaskCount = 1; // max number of alpha mask passes
+        bool _useSRGB = true; // use sRGB color correction
         [MenuItem("Gaussian Splatting/Import PLY Splats…")]
         static void Init()
         {
@@ -442,6 +458,8 @@ namespace GaussianSplatting.Editor.Importers
                     }
                 }
             }
+            
+            EditorGUILayout.HelpBox("At the moment more than 8M splats or .PLY files larger than 2GB don't work. ", MessageType.Info);
 
             EditorGUILayout.Space(10);
             EditorGUILayout.LabelField("Output Folder", EditorStyles.boldLabel);
@@ -452,22 +470,29 @@ namespace GaussianSplatting.Editor.Importers
             EditorGUILayout.Space(15);
             EditorGUILayout.LabelField("Splat settings", EditorStyles.boldLabel);
             _computeBoundingBox   = EditorGUILayout.Toggle("Compute Bounding Box", _computeBoundingBox);
-            _multiPassRendering   = EditorGUILayout.Toggle("Multi-Pass Rendering", _multiPassRendering);
-            if (_multiPassRendering)
-            {
-                _splatsPerPass = EditorGUILayout.IntField("Splat Count Per Pass", _splatsPerPass);
-                _splatsPerPass = Mathf.Clamp(_splatsPerPass, 1, 8 * 1024 * 1024);
+            _useSRGB = EditorGUILayout.Toggle("sRGB Color Correction", _useSRGB);
+            EditorGUILayout.HelpBox("Color correction requires 2 additional grab passes, for small splats you might want to disable this. Without this enabled back to front rendering will be used, which makes multi-pass rendering not work. sRGB color correction only works correctly if the world has HDR camera render targets.", MessageType.Info);
+            if(_useSRGB) {
+                _multiPassRendering   = EditorGUILayout.Toggle("Multi-Pass Rendering", _multiPassRendering);
+                if (_multiPassRendering)
+                {
+                    _splatsPerPass = EditorGUILayout.IntField("Splat Count Per Pass", _splatsPerPass);
+                    EditorGUILayout.HelpBox("The rendering of the splat is split into multiple sequential chunks, can help with VR rendering performance.", MessageType.Info);
+                    _splatsPerPass = Mathf.Clamp(_splatsPerPass, 128 * 1024, 8 * 1024 * 1024);
+                    _maxAlphaMaskCount = EditorGUILayout.IntField("Max Alpha Mask Count", _maxAlphaMaskCount);
+                    EditorGUILayout.HelpBox("After each chunk is rendered an optional alpha mask pass is added using a grab pass and stencil. This will occlude the following chunks if they are behind opaque objects. This can help performance, but grab pass can be expensive, so use it with care. If you have more than 4M splats you might want to have more than 1 alpha mask pass.", MessageType.Info);
+                }
+                else
+                {
+                    _splatsPerPass = 0; // disable multi-pass rendering
+                }
             }
-            else
-            {
-                _splatsPerPass = 0; // disable multi-pass rendering
-            }
-            EditorGUILayout.HelpBox("Multi-Pass Rendering can be faster on larger splats, but can have additional overhead", MessageType.Info);
             _precomputeSorting = EditorGUILayout.Toggle("Precompute Sorting", _precomputeSorting);
             if (_precomputeSorting)
             {
-                EditorGUILayout.HelpBox("Precomputing sorting for octahedral directions, makes the gaussian splatting work standalone, without the GaussianSplatRenderer. However this takes way more texture memory and might have rendering artifacts", MessageType.Info);
+                EditorGUILayout.HelpBox("Precomputing sorting for octahedral directions, makes the gaussian splatting work standalone, without the GaussianSplatRenderer. However this takes way more texture memory and might have rendering artifacts. THIS WILL NO LONGER WORK WITH GaussianSplatRenderer", MessageType.Warning);
             }
+          
             GUILayout.FlexibleSpace();
 
             if (GUILayout.Button("Import All PLYs"))
@@ -499,7 +524,7 @@ namespace GaussianSplatting.Editor.Importers
             {
                 EditorUtility.DisplayProgressBar("PLY Import",
                     $"Importing {Path.GetFileName(plyPath)}", 0f);
-                PlySplatImporter.Import(plyPath, prefabPath, _computeBoundingBox, _splatsPerPass, _precomputeSorting);
+                PlySplatImporter.Import(plyPath, prefabPath, _computeBoundingBox, _splatsPerPass, _precomputeSorting, _maxAlphaMaskCount, _useSRGB);
             }
             catch (Exception e)
             {

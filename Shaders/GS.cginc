@@ -41,10 +41,12 @@ v2g vert(appdata v) {
 [instance(32)]
 void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceID : SV_GSInstanceID, uint geoPrimID : SV_PrimitiveID) {
     uint id = geoPrimID * 32 + instanceID;
-
-    if (id >= _SplatCount)  return;
-
+    if (id >= _SplatCount) return; // check if id is within bounds
     id += _SplatOffset; // offset for the current batch
+    #ifdef _BACK_TO_FRONT
+        id = _ActualSplatCount - id - 1; // flip the order for back-to-front rendering
+    #endif
+    if (id >= _ActualSplatCount) return;
     
     g2f o;
     UNITY_SETUP_INSTANCE_ID(input[0]);
@@ -73,6 +75,9 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
     if (all(splatClipPos.xy < -1.0) || all(splatClipPos.xy > 1.0)) return; // outside of view frustum
 
     o.color = splat.color;
+    #ifdef _FAKE_SRGB
+        o.color.rgb = GammaToLinearSpace(o.color.rgb);
+    #endif
     float scale_max = max(splat.scale.x, max(splat.scale.y, splat.scale.z));
     float3 clamped_scale = clamp(splat.scale, scale_max * _ThinThreshold, scale_max);
 
@@ -89,8 +94,15 @@ void geo(point v2g input[1], inout TriangleStream<g2f> triStream, uint instanceI
     float areaScale = area / areaPost;
     o.color.a *= areaScale; // scale alpha by area ratio
 
-    if (o.color.a < _AlphaCutoff || isnan(o.color.a)) {
+    if (o.color.a < _AlphaCutoff) {
         return; // skip splats with too small area or invalid alpha
+    }
+
+    if(isnan(o.color.a)) {
+        ell.center = splatClipPos.xy;
+        ell.axis = float2(1, 0); // set axis to a default value
+        ell.size = float2(0.01, 0.01); // set size to a small value
+        o.color = float4(1,0,0,1); // debug color for NaN alpha
     }
 
     [unroll] for (uint vtxID = 0; vtxID < 4; vtxID ++)

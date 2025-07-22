@@ -1,4 +1,4 @@
-Shader "VRChatGaussianSplatting/GaussianSplatting"
+Shader "VRChatGaussianSplatting/GaussianSplattingSimpleBackToFront"
 {
     Properties
     {
@@ -33,15 +33,12 @@ Shader "VRChatGaussianSplatting/GaussianSplatting"
 
         Pass
         {
-            //Blend One OneMinusSrcAlpha //Back to front blending
-            Blend OneMinusDstAlpha One //Front to back blending
+            Blend One OneMinusSrcAlpha
             Cull Off
             ZWrite Off
-            Stencil {
-                Ref 1
-                Comp NotEqual  // skip pixels where alpha mask pass wrote 1
-            }
             CGPROGRAM
+            #define _BACK_TO_FRONT
+            #define _FAKE_SRGB
         	#include "GS.cginc"
             ENDCG
         }

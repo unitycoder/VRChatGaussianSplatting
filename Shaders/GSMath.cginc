@@ -22,8 +22,14 @@ float3x3 unit(float a) {
     return float3x3(a, 0, 0, 0, a, 0, 0, 0, a);
 }
 
+#define DIV_EPSILON 1e-6
+
 float safe_divide(float a, float b) {
-    return (b != 0.0) ? a / b : 0.0;
+    return (abs(b) > DIV_EPSILON) ? a / b : 0.0;
+}
+
+float safe_sqrt(float a) {
+    return (a > 0.0) ? sqrt(a) : 0.0;  // return 0 for negative inputs
 }
 
 float3x3 quat_to_mat(float4 q) {
@@ -56,14 +62,14 @@ Ellipse extractEllipse(float a, float b, float c, float d, float e, float f) {
     float lambda2 = (sum_ba - J) * 0.5;
 
     float r = safe_divide(diff_ba, c);
-    float ca = 0.5 * sign(c) / sqrt(1.0 + r * r);
+    float ca = safe_divide(0.5 * sign(c), sqrt(1.0 + r * r));
     float ch = sqrt(0.5 + ca) * sqrt(0.5);
     float sh = sqrt(0.5 - ca) * sqrt(0.5) * sign(diff_ba);
     float cos_theta = ch - sh;
     float sin_theta = ch + sh;
 
-    float a1 = sqrt(-safe_divide(Fp, lambda1));
-    float a2 = sqrt(-safe_divide(Fp, lambda2));
+    float a1 = safe_sqrt(-safe_divide(Fp, lambda1));
+    float a2 = safe_sqrt(-safe_divide(Fp, lambda2));
 
     Ellipse ellipse;
     ellipse.center = float2(h, k);
@@ -176,12 +182,15 @@ Ellipse GetProjectedEllipsoid(float3 pos, float3 scale, float4 rotation) {
     }
 
     // 4) pull off the six scalar coefficients (hi-parts) and call extractEllipse
-    float _a = C2_df[0][0].x;
-    float _b = C2_df[0][1].x * 2.0;
-    float _c = C2_df[1][1].x;
-    float _d = C2_df[0][2].x * 2.0;
-    float _e = C2_df[1][2].x * 2.0;
-    float _f = C2_df[2][2].x;
+
+    // normalize the coefficients to avoid numerical issues
+    float _max = 1.0 / max(C2_df[0][0].x, C2_df[1][1].x); 
+    float _a = C2_df[0][0].x * _max;
+    float _b = C2_df[0][1].x * 2.0 * _max;
+    float _c = C2_df[1][1].x * _max;
+    float _d = C2_df[0][2].x * 2.0 * _max;
+    float _e = C2_df[1][2].x * 2.0 * _max;
+    float _f = C2_df[2][2].x * _max;
     
     return extractEllipse(_a, _c, _b, _d, _e, _f);
 } 

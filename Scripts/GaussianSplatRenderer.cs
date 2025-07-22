@@ -162,7 +162,13 @@ public class GaussianSplatRenderer : UdonSharpBehaviour
             }
         }
 
-        Texture positions = splatMats[1].GetTexture("_GS_Positions");
+        Texture positions = null;
+        if(splatMats.Length > 1) { // Color correction is (probably) enabled, so first splat chunk material is 1
+            positions = splatMats[1].GetTexture("_GS_Positions");
+        } else { // Only one material, so use it directly
+            positions = splatMats[0].GetTexture("_GS_Positions");
+        }
+        
         _radixSort.elementCount = positions.width * positions.height;
         _radixSort.maxKeyBits = sortingSteps * 4; // Each sorting step sorts 4 bits, so total bits = steps * 4
         keyValueMat = _radixSort.computeKeyValues;
