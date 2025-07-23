@@ -109,6 +109,29 @@ namespace GaussianSplatting
 
                 Debug.Log($"Importing {count} splats into {side}x{side} textures");
 
+                // Pad splats to a square texture size with zero color zero size splats
+                if (count < effectiveCount)
+                {
+                    NativeArray<InputSplatData> paddedSplats = new NativeArray<InputSplatData>(effectiveCount, Allocator.Temp);
+                    for (int i = 0; i < count; ++i)
+                    {
+                        paddedSplats[i] = splats[i];
+                    }
+                    for (int i = count; i < effectiveCount; ++i)
+                    {
+                        paddedSplats[i] = new InputSplatData
+                        {
+                            pos     = Vector3.zero,
+                            dc0     = Vector3.zero,
+                            rot     = Quaternion.identity,
+                            scale   = Vector3.one,
+                            opacity = 0f
+                        };
+                    }
+                    splats.Dispose();
+                    splats = paddedSplats;
+                }
+
                 InputSplatData[] data = splats.ToArray();          // managed copy – easier to sort
                 int n = data.Length;
 
@@ -418,6 +441,7 @@ namespace GaussianSplatting.Editor.Importers
         bool _precomputeSorting = false; // precompute sorting for octahedral directions
         int _maxAlphaMaskCount = 1; // max number of alpha mask passes
         bool _useSRGB = true; // use sRGB color correction
+        Vector2 scrollPosition = Vector2.zero;
         [MenuItem("Gaussian Splatting/Import PLY Splats…")]
         static void Init()
         {
@@ -431,6 +455,7 @@ namespace GaussianSplatting.Editor.Importers
             {
                 _plyPaths.Clear();
             }
+            scrollPosition = GUILayout.BeginScrollView(scrollPosition, true, true, GUILayout.Height(100));	
             for (int i = 0; i < _plyPaths.Count; ++i)
             {
                 EditorGUILayout.BeginHorizontal();
@@ -444,7 +469,7 @@ namespace GaussianSplatting.Editor.Importers
                 }
                 EditorGUILayout.EndHorizontal();
             }
-
+            GUILayout.EndScrollView();
             if (GUILayout.Button("+ Add PLY file")) _plyPaths.Add(string.Empty);
             if (GUILayout.Button("Add All PLYs in Folder"))
             {
