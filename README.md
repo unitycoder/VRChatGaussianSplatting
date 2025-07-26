@@ -3,12 +3,22 @@ Gaussian splatting implementation in VRChat
 ## Usage
 1. Import unitypackage from [releases](https://github.com/MichaelMoroz/VRChatGaussianSplatting/releases) 
 2. Optionally you can just clone this repo instead (might have more up to date features)
-3. Import a .ply file using the built-in importer in the top main menu bar `Gaussian Splatting / Import .PLY Splat...`
-4. Select output folder for the imported data
-5. Replace the material of any of the splat objects under the splats gameobject, or add a new one (must have the point mesh). 
-6. Add the splat object to the GaussianSplattingRenderer object, which has a component with the same name with a list of splats.
-7. That components can only render one splat at a time, so it has a UdonSynced index of the currently rendered object, you need to change it to the splat you want to see.
-8. Additionally you can tune both the gaussian splat material, and the sorting settings (min max distance and camera position quantization)
+3. Open the built-in importer in the top main menu bar `Gaussian Splatting / Import .PLY Splat...`
+4. Select one or several `.PLY` files you want to import
+5. Select output folder for the imported prefabs.
+6. Select the import parameters
+   * Optionally disable usage of correct sRGB color space (removes 2 grab passes but makes transparency incorrect)
+   * Optional multi-chunk rendering. Splits the gaussian splat material into chunks of N splats (760k by default). Can improve performance.
+   * Optionally add an alpha stencil mask between each pass to occlude any following splats from next chunks. Can improve performance.
+   * Optionally import with presorting. Makes it work everywhere without `Gaussian Splat Renderer` including avatars / and non-VRChat unity projects.
+7. Click import.
+> Next steps are no longer relevant for presorted splats
+8. Open the example scene
+9. Add the imported prefabs into the scene
+10. Add the prefabs into the `GaussianSplattingRenderer` object.
+    * Optionally you can do this automatically by right clicking the `Gaussian Splat Renderer` component and selecting `Collect Gaussian Splat object for this renderer`
+    * And you can automatically generate toggles for the splat objects by right clicking and selecting `Generate Gaussian Splat toggles for this renderer`
+11.  Select the number of sorting steps and rendering distance min/max depending on your scene.
 
 > [!TIP]
 > When using this in VRChat it is recommended for you to turn off MSAA, as it reduces the performance drastically and makes no visual difference for the splats
@@ -18,7 +28,10 @@ Gaussian splatting implementation in VRChat
 > The textures are located in `Radix Sort / RTs /`
 
 > [!TIP]
-> Performance can be gained by reducing the `Splat Scale` parameter in the splat material, this will introduce more artifacts, but it can be much faster
+> The renderer can only render a single gaussian splat at once at the moment. You can try using presorted splats, they will somewhat work, but the rendering order / intersection might not look correctly.
+
+> [!TIP]
+> The currently rendered object index in the `Gaussian Splat Renderer` is synced between users. The toggles for the splats are also global for everyone.
 
 ## Credits
 * .PLY importer stolen from [aras-p's UnityGaussianSplatting](https://github.com/aras-p/UnityGaussianSplatting)  
