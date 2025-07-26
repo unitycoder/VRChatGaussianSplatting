@@ -26,6 +26,8 @@ Shader "VRChatGaussianSplatting/GaussianSplatting"
         _ScaleCutoff ("Scale Cutoff", Range(0, 100)) = 100.0
         _Exposure ("Exposure", Range(0, 5)) = 1.0
         _Opacity ("Opacity", Range(0, 5)) = 1.0
+        _OKLCHShift ("OKLCH Color Shift", Vector) = (0, 0, 0, 0) // Shift for OKLCH color space
+        _Gamma ("Gamma", Float) = 1.0 
     }
     SubShader
     {

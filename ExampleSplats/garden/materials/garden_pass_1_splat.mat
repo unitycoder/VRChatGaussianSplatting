@@ -25,7 +25,7 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _SplatCount: 452049
-    - _SplatOffset: 1048576
+    - _SplatCount: 750312
+    - _SplatOffset: 750313
     m_Colors: []
   m_BuildTextureStacks: []

@@ -39,6 +39,10 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _GS_RenderOrderPrecomputed:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _GS_Rotations:
         m_Texture: {fileID: 2800000, guid: c0dc0b11024d3734dac581217badb704, type: 2}
         m_Scale: {x: 1, y: 1}
@@ -47,21 +51,25 @@ Material:
         m_Texture: {fileID: 2800000, guid: c688a0fd7cceb914e959687d49679617, type: 2}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
-    m_Ints: []
+    m_Ints:
+    - _PRECOMPUTED_SORTING: 0
     m_Floats:
+    - _ActualSplatCount: 2002225
     - _AlphaCutoff: 0.03
     - _AntiAliasing: 1
     - _Exposure: 1
+    - _Gamma: 1
     - _GaussianMul: 1
     - _HACK_UNIFORM: 1
     - _Log2MinScale: -12
     - _Opacity: 1
     - _QuadScale: 1.1
     - _ScaleCutoff: 100
-    - _SplatCount: 1048576
+    - _SplatCount: 667409
     - _SplatOffset: 0
     - _ThinThreshold: 0.005
     m_Colors:
     - _MinMaxSortDistance: {r: 0, g: 0, b: 0, a: 0}
     - _MirrorCameraPos: {r: 0, g: 0, b: 0, a: 0}
+    - _OKLCHShift: {r: 0, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []
