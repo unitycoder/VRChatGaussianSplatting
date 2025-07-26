@@ -38,6 +38,13 @@ Gaussian splatting implementation in VRChat
 * This repository is a heavily modified version of [lambdalemon's gaussian splats](https://github.com/lambdalemon/vrcsplat)  
 * The Radix Sort uses [d4rkpl4y3r's mipmap prefix sum trick](https://github.com/d4rkc0d3r/CompactSparseTextureDemo)  
 
+## Worlds in VRChat that use this
+* [My Gaussian Splat Gallery](https://vrchat.com/home/launch?worldId=wrld_91216c98-a1db-4be6-8ebf-05088b335825)
+* [My Gaussian Splat Mega Gallery](https://vrchat.com/home/launch?worldId=wrld_01df1297-a9de-4d53-9da1-213c29a3012a)
+* [双葉水辺公園 ［ 3DGS × Photogrammetry ］ — Tokoyoshi](https://vrchat.com/home/launch?worldId=wrld_29cf640a-5c84-4a61-b954-559809a69880)
+* [- 川北東橋 ⁄ Kawakita-higashi Bridge - 3DGS — DEKA_KEIJI777V](https://vrchat.com/home/launch?worldId=wrld_45d430c0-2a0c-4d7b-b848-bd950fda5e5f)
+* [Хотинська фортеця - Gaussian Splatting - 3Dimka](https://vrchat.com/home/launch?worldId=wrld_2ccfe926-3b64-4522-97a1-9840f329f5b3)
+
 ## Implementation details 
 
 ### Cursed Radix Sort
