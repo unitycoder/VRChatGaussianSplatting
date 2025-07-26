@@ -28,7 +28,7 @@ Gaussian splatting implementation in VRChat
 > The textures are located in `Radix Sort / RTs /`
 
 > [!TIP]
-> The renderer can only render a single gaussian splat at once at the moment. You can try using presorted splats, they will somewhat work, but the rendering order / intersection might not look correctly.
+> The renderer can only render a single gaussian splat at once at the moment. You can try using presorted splats for multiple splat rendering, they will somewhat work, but the rendering order / intersection might not look correctly.
 
 > [!TIP]
 > The currently rendered object index in the `Gaussian Splat Renderer` is synced between users. The toggles for the splats are also global for everyone.
